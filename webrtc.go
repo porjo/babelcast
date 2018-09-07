@@ -28,7 +28,7 @@ func (w *WebRTCPeer) Close() error {
 	return w.pc.Close()
 }
 
-func NewPC(offerSd string, onStateChange func(connectionState ice.ConnectionState)) (*WebRTCPeer, error) {
+func NewPC(offerSd string, onStateChange func(connectionState ice.ConnectionState), onTrack func(track *webrtc.RTCTrack)) (*WebRTCPeer, error) {
 	// Setup the codecs you want to use.
 	// We'll use the default ones but you can also define your own
 	webrtc.RegisterDefaultCodecs()
@@ -45,18 +45,21 @@ func NewPC(offerSd string, onStateChange func(connectionState ice.ConnectionStat
 		return nil, err
 	}
 
+	pc.Ontrack = onTrack
 	pc.OnICEConnectionStateChange = onStateChange
 
-	// Create a audio track
-	opusTrack, err := pc.NewRTCTrack(webrtc.DefaultPayloadTypeOpus, "audio", "babelcast")
-	if err != nil {
-		return nil, err
-	}
-	_, err = pc.AddTrack(opusTrack)
-	if err != nil {
-		return nil, err
-	}
+	/*
+		// Create a audio track
+		opusTrack, err := pc.NewRTCTrack(webrtc.DefaultPayloadTypeOpus, "audio", "babelcast")
+		if err != nil {
+			return nil, err
+		}
+		_, err = pc.AddTrack(opusTrack)
+		if err != nil {
+			return nil, err
+		}
 
+	*/
 	// Set the remote SessionDescription
 	offer := webrtc.RTCSessionDescription{
 		Type: webrtc.RTCSdpTypeOffer,
@@ -66,7 +69,8 @@ func NewPC(offerSd string, onStateChange func(connectionState ice.ConnectionStat
 		return nil, err
 	}
 
-	peer := &WebRTCPeer{pc: pc, track: opusTrack}
+	//peer := &WebRTCPeer{pc: pc, track: opusTrack}
+	peer := &WebRTCPeer{pc: pc}
 
 	return peer, nil
 }

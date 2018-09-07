@@ -35,8 +35,6 @@ $(function(){
 
 	$("#connect-button").click(function() {
 		if (ws.readyState === 1) {
-
-			recordAudio().then( () => {
 				log("js: Connecting to host");
 				$("#output").show();
 				var params = {};
@@ -45,9 +43,6 @@ $(function(){
 				params.SessionDescription = pc.localDescription.sdp;
 				var val = {Key: 'connect', Value: params};
 				ws.send(JSON.stringify(val));
-			}).catch(err => {
-				log(err)
-			});
 		} else {
 			log("WS socket not ready");
 		}
@@ -73,6 +68,7 @@ $(function(){
 					break;
 				case 'sd_answer':
 					connectRTC(wsMsg.Value);
+			recordAudio();
 					break;
 			}
 		}
@@ -96,17 +92,18 @@ $(function(){
 		]
 	})
 
-	// call start() to initiate
 	async function recordAudio() {
-			// get local stream, show it in self-view and add it to be sent
-			const stream =
-				await navigator.mediaDevices.getUserMedia({
-					audio: true,
-					video: false
-				});
-			stream.getTracks().forEach((track) =>
-				pc.addTrack(track, stream));
-			//selfView.srcObject = stream;
+		const stream =
+			await navigator.mediaDevices.getUserMedia({
+				audio: true,
+				video: false
+			}).then(stream => {
+				//preview stream
+				//document.getElementById('media-record').srcObject = stream
+				console.log("Add stream", stream)
+				//stream.getTracks().forEach(track => pc.addTrack(track, stream));
+				pc.addStream(stream);
+			})
 	}
 
 	pc.ontrack = function (event) {
@@ -115,13 +112,14 @@ $(function(){
 		el.autoplay = true
 		el.controls = true
 
-		$("#media").append(el);
+		$("#media-play").append(el);
 	}
 
 	pc.oniceconnectionstatechange = e => log("js: rtc state change, " + pc.iceConnectionState)
 	pc.onicecandidate = event => {
 		if (event.candidate === null) {
 			//document.getElementById('localSessionDescription').value = btoa(pc.localDescription.sdp)
+			console.log("ice candidate event", event)
 		}
 	}
 

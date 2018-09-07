@@ -52,7 +52,7 @@ func (c *Conn) connectProducerHandler(ctx context.Context, cmd CmdConnect) error
 	channel = cmd.Channel
 
 	offer := cmd.SessionDescription
-	c.peer, err = NewPC(offer, c.rtcStateChangeHandler)
+	c.peer, err = NewPC(offer, c.rtcStateChangeHandler, c.rtcTrackHandler)
 	if err != nil {
 		return err
 	}
@@ -81,22 +81,6 @@ func (c *Conn) connectProducerHandler(ctx context.Context, cmd CmdConnect) error
 		return fmt.Errorf("can't listen on pub socket: %s", err)
 	}
 
-	go func() {
-		defer log.Printf("opusChan read goroutine quitting...\n")
-		for {
-			select {
-			case <-ctx.Done():
-				c.peer.Close()
-				return
-			case p := <-c.peer.track.Packets:
-				fmt.Printf("peer packet %d\n", len(p.Raw))
-				if err = c.sock.Send(p.Raw); err != nil {
-					c.errChan <- fmt.Errorf("pub send failed: %s", err)
-				}
-			}
-		}
-	}()
-
 	return nil
 }
 
@@ -113,7 +97,7 @@ func (c *Conn) connectConsumerHandler(ctx context.Context, cmd CmdConnect) error
 	channel = cmd.Channel
 
 	offer := cmd.SessionDescription
-	c.peer, err = NewPC(offer, c.rtcStateChangeHandler)
+	c.peer, err = NewPC(offer, c.rtcStateChangeHandler, nil)
 	if err != nil {
 		return err
 	}
@@ -178,6 +162,27 @@ func (c *Conn) writeMsg(val interface{}) error {
 	}
 
 	return nil
+}
+
+// WebRTC callback function
+func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
+	fmt.Printf("rtcTrackHandler %+v\n", track)
+	go func() {
+		var err error
+		defer log.Printf("rtcTrackhandler goroutine quitting...\n")
+		for {
+			select {
+			//		case <-ctx.Done():
+			//			c.peer.Close()
+			//			return
+			case p := <-track.Packets:
+				fmt.Printf("peer packet %d\n", len(p.Raw))
+				if err = c.sock.Send(p.Raw); err != nil {
+					c.errChan <- fmt.Errorf("pub send failed: %s", err)
+				}
+			}
+		}
+	}()
 }
 
 // WebRTC callback function
