@@ -7,7 +7,7 @@ if (loc.protocol === "https:") {
 }
 ws_uri += "//" + loc.host;
 var path = loc.pathname.replace(/\/$/, '');
-ws_uri += path + "/websocket";
+ws_uri += "/ws/producer";
 
 var ws = new WebSocket(ws_uri);
 
@@ -35,17 +35,19 @@ $(function(){
 
 	$("#connect-button").click(function() {
 		if (ws.readyState === 1) {
-			log("js: Connecting to host");
-			$("#output").show();
-			var params = {};
-			params.Url = $("#url").val();
-			params.Hostname = $("#hostname").val();
-			params.Port = Number($("#port").val());
-			params.Username = $("#username").val();
-			params.Channel = $("#channel").val();
-			params.SessionDescription = pc.localDescription.sdp;
-			var val = {Key: 'connect', Value: params};
-			ws.send(JSON.stringify(val));
+
+			recordAudio().then( () => {
+				log("js: Connecting to host");
+				$("#output").show();
+				var params = {};
+				params.Username = $("#username").val();
+				params.Channel = $("#channel").val();
+				params.SessionDescription = pc.localDescription.sdp;
+				var val = {Key: 'connect', Value: params};
+				ws.send(JSON.stringify(val));
+			}).catch(err => {
+				log(err)
+			});
 		} else {
 			log("WS socket not ready");
 		}
@@ -94,6 +96,19 @@ $(function(){
 		]
 	})
 
+	// call start() to initiate
+	async function recordAudio() {
+			// get local stream, show it in self-view and add it to be sent
+			const stream =
+				await navigator.mediaDevices.getUserMedia({
+					audio: true,
+					video: false
+				});
+			stream.getTracks().forEach((track) =>
+				pc.addTrack(track, stream));
+			//selfView.srcObject = stream;
+	}
+
 	pc.ontrack = function (event) {
 		var el = document.createElement(event.track.kind)
 		el.srcObject = event.streams[0]
@@ -111,7 +126,7 @@ $(function(){
 	}
 
 	pc.createOffer({
-	//	offerToReceiveVideo: true, 
+		offerToReceiveVideo: false,
 		offerToReceiveAudio: true
 	}).then(d => pc.setLocalDescription(d)).catch(log)
 

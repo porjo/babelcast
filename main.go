@@ -40,12 +40,10 @@ func main() {
 
 	r := mux.NewRouter()
 
-	r.Handle("/websocket", &wsHandler{})
-
-	r.Handle("/producer", http.FileServer(http.Dir(*webRootProducer)))
-	r.HandleFunc("/producer/{channel}", ProducerHandler).Methods("PUT")
-	r.Handle("/consumer", http.FileServer(http.Dir(*webRootConsumer)))
-	r.HandleFunc("/consumer/{channel}", ConsumerHandler).Methods("GET")
+	r.PathPrefix("/static/producer/").Handler(http.StripPrefix("/static/producer/", http.FileServer(http.Dir(*webRootProducer))))
+	r.PathPrefix("/static/consumer/").Handler(http.StripPrefix("/static/consumer/", http.FileServer(http.Dir(*webRootConsumer))))
+	r.HandleFunc("/ws/producer", producerHandler)
+	r.HandleFunc("/ws/consumer", consumerHandler)
 
 	log.Printf("Listening on port :%d\n", *port)
 
