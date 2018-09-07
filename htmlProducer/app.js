@@ -30,23 +30,7 @@ $(function(){
 
 	$("#connect-button").click(function() {
 		if (ws.readyState === 1) {
-			navigator.mediaDevices.getUserMedia({
-				audio: true,
-				video: false
-			}).then(stream => {
-				//preview stream
-				//document.getElementById('media-record').srcObject = stream
-				/*
-				stream.getTracks().forEach(track => {
-					console.log("Add track", track)
-					pc.addTrack(track, stream)
-				})
-				*/
-				pc.addStream(stream);
-
-				pc.createOffer(gotDescription, createOfferError)
-			})
-			//}).catch(e => log("reclog " + e))
+			goWebrtc()
 		} else {
 			log("WS socket not ready");
 		}
@@ -71,7 +55,7 @@ $(function(){
 					log("Error: " + wsMsg.Value);
 					break;
 				case 'sd_answer':
-					connectRTC(wsMsg.Value);
+					startSession(wsMsg.Value);
 					break;
 			}
 		}
@@ -87,72 +71,43 @@ $(function(){
 	// -------- WebRTC ------------
 	//
 
-	pc = new RTCPeerConnection({
-		iceServers: [
-			{
-				urls: "stun:stun.l.google.com:19302"
-			}
-		]
-	})
+	goWebrtc = () => {
+		let pc = new RTCPeerConnection({
+			iceServers: [
+				{
+					urls: 'stun:stun.l.google.com:19302'
+				}
+			]
+		})
 
-	function gotDescription(description) {
-		console.log('got description');
-		pc.setLocalDescription(description, function () {
-				log("js: Connecting to host");
-				console.log("blah")
-				console.log("blah2", description)
-				$("#output").show();
+		navigator.mediaDevices.getUserMedia({video: false, audio: true})
+			.then(stream => pc.addStream(stream))
+			.catch(log)
+
+		pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+		pc.onicecandidate = event => {
+			if (event.candidate === null) {
+				console.log("ice candidate", pc.localDescription.sdp)
 				var params = {};
 				params.Username = $("#username").val();
 				params.Channel = $("#channel").val();
-				params.SessionDescription = description.sdp
+				params.SessionDescription = pc.localDescription.sdp
 				var val = {Key: 'connect', Value: params};
 				ws.send(JSON.stringify(val));
-		}, function() {console.log('set description error')});
-	}
-
-	function createOfferError(error) {
-		console.log(error);
-	}
-
-	pc.ontrack = function (event) {
-		var el = document.createElement(event.track.kind)
-		el.srcObject = event.streams[0]
-		el.autoplay = true
-		el.controls = true
-
-		$("#media-play").append(el);
-	}
-
-	pc.oniceconnectionstatechange = e => log("js: rtc state change, " + pc.iceConnectionState)
-	pc.onicecandidate = event => {
-		if (event.candidate === null) {
-			//document.getElementById('localSessionDescription').value = btoa(pc.localDescription.sdp)
-			console.log("ice candidate event", event)
-		}
-	}
-
-	pc.onnegotiationneeded = e => {
-		console.log("onneg ", e)
-
-	/*
-		pc.createOffer({
-			offerToReceiveVideo: false,
-			offerToReceiveAudio: true
-		}).then(d => pc.setLocalDescription(d)).catch(log)
-		*/
-	}
-
-	function connectRTC(sd) {
-			if (sd === '') {
-				return alert('Session Description must not be empty')
 			}
+		}
 
+		pc.onnegotiationneeded = e =>
+			pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
+
+		startSession = (sd) => {
 			try {
 				pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}))
 			} catch (e) {
 				alert(e)
 			}
+		}
 	}
+
 
 });
