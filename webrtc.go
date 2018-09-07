@@ -29,9 +29,9 @@ func (w *WebRTCPeer) Close() error {
 }
 
 func NewPC(offerSd string, onStateChange func(connectionState ice.ConnectionState), onTrack func(track *webrtc.RTCTrack)) (*WebRTCPeer, error) {
-	// Setup the codecs you want to use.
-	// We'll use the default ones but you can also define your own
-	webrtc.RegisterDefaultCodecs()
+
+	// Register only audio codec (Opus)
+	webrtc.RegisterCodec(webrtc.NewRTCRtpOpusCodec(webrtc.DefaultPayloadTypeOpus, 48000, 2))
 
 	// Create a new RTCPeerConnection
 	pc, err := webrtc.New(webrtc.RTCConfiguration{

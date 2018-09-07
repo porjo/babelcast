@@ -28,21 +28,25 @@ $(function(){
 		$("#messages").prepend("<div class='message'><span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span></div>");
 	}
 
-	$("#advanced-toggle").click(function() {
-		$(this).find(".text").toggleClass('hidden');
-		$("#advanced-form").slideToggle();
-	});
-
 	$("#connect-button").click(function() {
 		if (ws.readyState === 1) {
-				log("js: Connecting to host");
-				$("#output").show();
-				var params = {};
-				params.Username = $("#username").val();
-				params.Channel = $("#channel").val();
-				params.SessionDescription = pc.localDescription.sdp;
-				var val = {Key: 'connect', Value: params};
-				ws.send(JSON.stringify(val));
+			navigator.mediaDevices.getUserMedia({
+				audio: true,
+				video: false
+			}).then(stream => {
+				//preview stream
+				//document.getElementById('media-record').srcObject = stream
+				/*
+				stream.getTracks().forEach(track => {
+					console.log("Add track", track)
+					pc.addTrack(track, stream)
+				})
+				*/
+				pc.addStream(stream);
+
+				pc.createOffer(gotDescription, createOfferError)
+			})
+			//}).catch(e => log("reclog " + e))
 		} else {
 			log("WS socket not ready");
 		}
@@ -68,7 +72,6 @@ $(function(){
 					break;
 				case 'sd_answer':
 					connectRTC(wsMsg.Value);
-			recordAudio();
 					break;
 			}
 		}
@@ -92,18 +95,24 @@ $(function(){
 		]
 	})
 
-	async function recordAudio() {
-		const stream =
-			await navigator.mediaDevices.getUserMedia({
-				audio: true,
-				video: false
-			}).then(stream => {
-				//preview stream
-				//document.getElementById('media-record').srcObject = stream
-				console.log("Add stream", stream)
-				//stream.getTracks().forEach(track => pc.addTrack(track, stream));
-				pc.addStream(stream);
-			})
+	function gotDescription(description) {
+		console.log('got description');
+		pc.setLocalDescription(description, function () {
+				log("js: Connecting to host");
+				console.log("blah")
+				console.log("blah2", description)
+				$("#output").show();
+				var params = {};
+				params.Username = $("#username").val();
+				params.Channel = $("#channel").val();
+				params.SessionDescription = description.sdp
+				var val = {Key: 'connect', Value: params};
+				ws.send(JSON.stringify(val));
+		}, function() {console.log('set description error')});
+	}
+
+	function createOfferError(error) {
+		console.log(error);
 	}
 
 	pc.ontrack = function (event) {
@@ -123,10 +132,16 @@ $(function(){
 		}
 	}
 
-	pc.createOffer({
-		offerToReceiveVideo: false,
-		offerToReceiveAudio: true
-	}).then(d => pc.setLocalDescription(d)).catch(log)
+	pc.onnegotiationneeded = e => {
+		console.log("onneg ", e)
+
+	/*
+		pc.createOffer({
+			offerToReceiveVideo: false,
+			offerToReceiveAudio: true
+		}).then(d => pc.setLocalDescription(d)).catch(log)
+		*/
+	}
 
 	function connectRTC(sd) {
 			if (sd === '') {

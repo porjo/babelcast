@@ -176,8 +176,8 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 			//			c.peer.Close()
 			//			return
 			case p := <-track.Packets:
-				fmt.Printf("peer packet %d\n", len(p.Raw))
-				if err = c.sock.Send(p.Raw); err != nil {
+				fmt.Printf("peer packet %d\n", len(p.Payload))
+				if err = c.sock.Send(p.Payload); err != nil {
 					c.errChan <- fmt.Errorf("pub send failed: %s", err)
 				}
 			}
@@ -193,8 +193,8 @@ func (c *Conn) rtcStateChangeHandler(connectionState ice.ConnectionState) {
 	switch connectionState {
 	case ice.ConnectionStateConnected:
 		log.Printf("ice connected\n")
-		log.Printf("remote SDP %s\n", c.peer.pc.RemoteDescription().Sdp)
-		log.Printf("local SDP %s\n", c.peer.pc.LocalDescription().Sdp)
+		log.Printf("remote SDP\n%s\n", c.peer.pc.RemoteDescription().Sdp)
+		log.Printf("local SDP\n%s\n", c.peer.pc.LocalDescription().Sdp)
 		c.infoChan <- "ice connected"
 
 	case ice.ConnectionStateDisconnected:
