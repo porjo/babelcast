@@ -16,8 +16,10 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"os"
 	"regexp"
@@ -31,6 +33,7 @@ import (
 	"nanomsg.org/go-mangos/transport/inproc"
 )
 
+// channel name should NOT match the negation of valid characters
 var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
 
 type Conn struct {
@@ -38,13 +41,16 @@ type Conn struct {
 	wsConn  *websocket.Conn
 	mSock   mangos.Socket
 
-	channel string
+	// store channel name as 32bit hash
+	channelHash []byte
 
 	errChan       chan error
 	infoChan      chan string
 	trackQuitChan chan struct{}
 
 	logger *log.Logger
+
+	lastTimestamp uint32
 }
 
 func NewConn(ws *websocket.Conn) *Conn {
@@ -100,12 +106,17 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	if cmd.Channel == "" {
 		return fmt.Errorf("channel cannot be empty")
 	}
-	if cmd.Channel != channelRegexp.ReplaceAllString(cmd.Channel, "") {
+
+	if channelRegexp.MatchString(cmd.Channel) {
 		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
 
 	c.Log("setting up publisher for channel '%s'\n", cmd.Channel)
-	c.channel = cmd.Channel
+
+	// store a 32bit hash of the channel name in a 4 byte slice
+	c.channelHash = make([]byte, 4)
+	binary.LittleEndian.PutUint32(c.channelHash, hash(cmd.Channel))
+
 	c.mSock = pubSocket
 
 	return nil
@@ -135,14 +146,19 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 	if err = c.mSock.Dial("inproc://babelcast/"); err != nil {
 		return fmt.Errorf("sub can't dial %s", err)
 	}
-	if err = c.mSock.SetOption(mangos.OptionSubscribe, []byte(channel)); err != nil {
+
+	// store a 32bit hash of the channel name in a 4 byte slice
+	c.channelHash = make([]byte, 4)
+	binary.LittleEndian.PutUint32(c.channelHash, hash(cmd.Channel))
+
+	if err = c.mSock.SetOption(mangos.OptionSubscribe, c.channelHash); err != nil {
 		return fmt.Errorf("sub can't subscribe %s", err)
 	}
 
 	go func() {
 		defer c.Log("sub read goroutine quitting...\n")
 
-		var packet []byte
+		var data []byte
 		for {
 
 			select {
@@ -152,12 +168,15 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 				return
 			default:
 			}
-			if packet, err = c.mSock.Recv(); err != nil {
+			if data, err = c.mSock.Recv(); err != nil {
 				c.errChan <- fmt.Errorf("sub sock recv err %s\n", err)
 			}
 
-			// FIXME: where to get samples count from?
-			s := webrtc.RTCSample{Data: packet, Samples: uint32(len(packet))}
+			// data contains [channel name, sample count, opus packet]
+			samples := binary.LittleEndian.Uint32(data[4:8])
+			payload := data[8:]
+
+			s := webrtc.RTCSample{Data: payload, Samples: samples}
 			c.rtcPeer.track.Samples <- s
 		}
 	}()
@@ -170,7 +189,7 @@ func (c *Conn) writeMsg(val interface{}) error {
 	if err != nil {
 		return err
 	}
-	c.Log("write message %s\n", c.wsConn.RemoteAddr(), string(j))
+	c.Log("write message %s\n", string(j))
 	if err = c.wsConn.WriteMessage(websocket.TextMessage, j); err != nil {
 		return err
 	}
@@ -189,9 +208,15 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 				return
 			case p := <-track.Packets:
 				if c.mSock != nil {
-					if err = c.mSock.Send(append([]byte(c.channel), p.Payload...)); err != nil {
+					// store the sample count in a 4 byte slice before our payload
+					samples := make([]byte, 4)
+					binary.LittleEndian.PutUint32(samples, p.Timestamp-c.lastTimestamp)
+					head := append(c.channelHash, samples...)
+					data := append(head, p.Payload...)
+					if err = c.mSock.Send(data); err != nil {
 						c.errChan <- fmt.Errorf("pub send failed: %s", err)
 					}
+					c.lastTimestamp = p.Timestamp
 				}
 			}
 		}
@@ -271,4 +296,10 @@ func (c *Conn) PingHandler(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func hash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
 }
