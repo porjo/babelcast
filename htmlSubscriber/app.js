@@ -14,9 +14,6 @@ var ws = new WebSocket(ws_uri);
 var pc;
 var sd_uri = loc.protocol + "//" + loc.host + path + "/sdp";
 
-var localStream;
-var audioTrack;
-
 $(function(){
 
 	var log = m => {
@@ -38,9 +35,8 @@ $(function(){
 			var params = {};
 			params.Username = $("#username").val();
 			params.Channel = $("#channel").val();
-			var val = {Key: 'connect', Value: params};
+			var val = {Key: 'connect_subscriber', Value: params};
 			ws.send(JSON.stringify(val));
-			audioTrack.enabled = true;
 		} else {
 			log("WS socket not ready");
 		}
@@ -73,10 +69,8 @@ $(function(){
 
 	ws.onclose = function()	{
 		log("WS connection closed");
-		audioTrack.stop()
 		pc.close()
 	};
-
 
 
 	//
@@ -90,17 +84,6 @@ $(function(){
 			}
 		]
 	})
-
-	navigator.mediaDevices.getUserMedia({video: false, audio: true})
-		.then(stream => {
-			console.log('add stream')
-			localStream = stream
-			audioTrack = stream.getAudioTracks()[0];
-			pc.addStream(stream)
-			// mute until we're ready
-			audioTrack.enabled = false;
-		})
-		.catch(log)
 
 	pc.oniceconnectionstatechange = e => {
 		switch (pc.iceConnectionState) {
@@ -132,6 +115,15 @@ $(function(){
 			var val = {Key: 'session', Value: params};
 			ws.send(JSON.stringify(val));
 		}
+	}
+
+	pc.ontrack = function (event) {
+		var el = document.createElement(event.track.kind)
+		el.srcObject = event.streams[0]
+		el.autoplay = true
+		el.controls = true
+
+		$("#media").append(el);
 	}
 
 	pc.onnegotiationneeded = e =>

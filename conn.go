@@ -20,21 +20,25 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pions/webrtc"
 	"github.com/pions/webrtc/pkg/ice"
 	"nanomsg.org/go-mangos"
-	"nanomsg.org/go-mangos/protocol/pub"
 	"nanomsg.org/go-mangos/protocol/sub"
 	"nanomsg.org/go-mangos/transport/inproc"
 )
+
+var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
 
 type Conn struct {
 	peer *WebRTCPeer
 	conn *websocket.Conn
 	sock mangos.Socket
+
+	channel string
 
 	errChan       chan error
 	infoChan      chan string
@@ -88,8 +92,6 @@ func (c *Conn) setupSession(ctx context.Context, cmd CmdSession) error {
 }
 
 func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
-	var err error
-	var channel string
 
 	if c.peer == nil {
 		return fmt.Errorf("webrtc session not established")
@@ -98,17 +100,12 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	if cmd.Channel == "" {
 		return fmt.Errorf("channel cannot be empty")
 	}
-
-	channel = cmd.Channel
-
-	c.Log("setting up producer for channel '%s'\n", channel)
-	if c.sock, err = pub.NewSocket(); err != nil {
-		return fmt.Errorf("can't get new pub socket: %s", err)
+	if cmd.Channel != channelRegexp.ReplaceAllString(cmd.Channel, "") {
+		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
-	c.sock.AddTransport(inproc.NewTransport())
-	if err = c.sock.Listen("inproc://babelcast/" + channel); err != nil {
-		return fmt.Errorf("can't listen on pub socket: %s", err)
-	}
+
+	c.channel = cmd.Channel
+	c.sock = pubSocket
 
 	return nil
 }
@@ -134,8 +131,11 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 		return fmt.Errorf("can't get new sub socket: %s", err)
 	}
 	c.sock.AddTransport(inproc.NewTransport())
-	if err = c.sock.Dial("inproc://babelcast/" + channel); err != nil {
+	if err = c.sock.Dial("inproc://babelcast/"); err != nil {
 		return fmt.Errorf("sub can't dial %s", err)
+	}
+	if err = c.sock.SetOption(mangos.OptionSubscribe, []byte(channel)); err != nil {
+		return fmt.Errorf("sub can't subscribe %s", err)
 	}
 
 	go func() {
@@ -147,6 +147,7 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 			select {
 			case <-ctx.Done():
 				c.peer.Close()
+				c.sock.Close()
 				return
 			default:
 			}
@@ -187,7 +188,7 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 				return
 			case p := <-track.Packets:
 				if c.sock != nil {
-					if err = c.sock.Send(p.Payload); err != nil {
+					if err = c.sock.Send(append([]byte(c.channel), p.Payload...)); err != nil {
 						c.errChan <- fmt.Errorf("pub send failed: %s", err)
 					}
 				}

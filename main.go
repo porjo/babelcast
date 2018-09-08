@@ -24,9 +24,14 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"nanomsg.org/go-mangos"
+	"nanomsg.org/go-mangos/protocol/pub"
+	"nanomsg.org/go-mangos/transport/inproc"
 )
 
 const httpTimeout = 15 * time.Second
+
+var pubSocket mangos.Socket
 
 func main() {
 	webRootPublisher := flag.String("webRootPublisher", "htmlPublisher", "web root directory for publisher")
@@ -42,8 +47,7 @@ func main() {
 
 	r.PathPrefix("/static/publisher/").Handler(http.StripPrefix("/static/publisher/", http.FileServer(http.Dir(*webRootPublisher))))
 	r.PathPrefix("/static/subscriber/").Handler(http.StripPrefix("/static/subscriber/", http.FileServer(http.Dir(*webRootSubscriber))))
-	r.HandleFunc("/ws/publisher", publisherHandler)
-	r.HandleFunc("/ws/subscriber", subscriberHandler)
+	r.HandleFunc("/ws", wsHandler)
 
 	log.Printf("Listening on port :%d\n", *port)
 
@@ -52,6 +56,16 @@ func main() {
 		Addr:         fmt.Sprintf(":%d", *port),
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
+	}
+
+	var err error
+
+	if pubSocket, err = pub.NewSocket(); err != nil {
+		log.Fatalf("can't get new pub socket: %s", err)
+	}
+	pubSocket.AddTransport(inproc.NewTransport())
+	if err = pubSocket.Listen("inproc://babelcast/"); err != nil {
+		log.Fatalf("can't listen on pub socket: %s", err)
 	}
 
 	log.Fatal(srv.ListenAndServe())

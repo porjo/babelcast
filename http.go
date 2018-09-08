@@ -46,7 +46,7 @@ type CmdSession struct {
 	SessionDescription string
 }
 
-func publisherHandler(w http.ResponseWriter, r *http.Request) {
+func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	gconn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -59,7 +59,7 @@ func publisherHandler(w http.ResponseWriter, r *http.Request) {
 	c := NewConn(gconn)
 	defer c.conn.Close()
 
-	c.Log("publisher client connected, addr %s\n", c.conn.RemoteAddr())
+	c.Log("client connected, addr %s\n", c.conn.RemoteAddr())
 
 	go c.LogHandler(ctx)
 	// setup ping/pong to keep connection open
@@ -96,7 +96,7 @@ func publisherHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
-			case "connect":
+			case "connect_publisher":
 				cmd := CmdConnect{}
 				err = json.Unmarshal(msg.Value, &cmd)
 				if err != nil {
@@ -106,6 +106,19 @@ func publisherHandler(w http.ResponseWriter, r *http.Request) {
 				err := c.connectPublisher(ctx, cmd)
 				if err != nil {
 					c.Log("connectPublisher error: %s\n", err)
+					c.errChan <- err
+					continue
+				}
+			case "connect_subscriber":
+				cmd := CmdConnect{}
+				err = json.Unmarshal(msg.Value, &cmd)
+				if err != nil {
+					c.errChan <- err
+					continue
+				}
+				err := c.connectSubscriber(ctx, cmd)
+				if err != nil {
+					c.Log("connectSubscriber error: %s\n", err)
 					c.errChan <- err
 					continue
 				}
@@ -119,8 +132,4 @@ func publisherHandler(w http.ResponseWriter, r *http.Request) {
 	// this will trigger all goroutines to quit
 	ctxCancel()
 	c.Log("end handler\n")
-}
-
-func subscriberHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO
 }

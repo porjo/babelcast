@@ -1,0 +1,64 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+
+		<title>Babelcast</title>
+
+		<link href="app.css" rel="stylesheet">
+
+	</head>
+	<body>
+		<div class="container">
+			<h1>Babelcast Subscriber</h1>
+			<div id="input-form">
+				<div id='advanced-form'>
+					<table>
+						<tr>
+							<th>Username:</th>
+							<td><input type='text' size=15 id='username'></td>
+						</tr>
+						<tr>
+							<th>Channel:</th>
+							<td><input type='text' size=25 id='channel'></td>
+						</tr>
+					</table>
+				</div>
+				<button id='connect-button' class='hidden'>Connect</button>
+				<div id='spinner' class='hidden'>
+					<p>Negotiating connection...</p>
+					<div class="sk-fading-circle">
+						<div class="sk-circle1 sk-circle"></div>
+						<div class="sk-circle2 sk-circle"></div>
+						<div class="sk-circle3 sk-circle"></div>
+						<div class="sk-circle4 sk-circle"></div>
+						<div class="sk-circle5 sk-circle"></div>
+						<div class="sk-circle6 sk-circle"></div>
+						<div class="sk-circle7 sk-circle"></div>
+						<div class="sk-circle8 sk-circle"></div>
+						<div class="sk-circle9 sk-circle"></div>
+						<div class="sk-circle10 sk-circle"></div>
+						<div class="sk-circle11 sk-circle"></div>
+						<div class="sk-circle12 sk-circle"></div>
+					</div>
+				</div>
+			</div>
+
+			<div id='output' class='hidden'>
+				<div id='media'></div>
+				<h3>Messages</h3>
+				<div id="messages"></div>
+				<h3>Status</h3>
+				<div id="status"></div>
+			</div>
+			<div id='footer'>
+				<a href='https://github.com/porjo/babelcast'>Github Project</a>
+			</div>
+		</div>
+
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+		<script src="app.js"></script>
+	</body>
+</html>
