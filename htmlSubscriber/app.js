@@ -12,7 +12,6 @@ ws_uri += "/ws";
 var ws = new WebSocket(ws_uri);
 
 var pc;
-var sd_uri = loc.protocol + "//" + loc.host + path + "/sdp";
 
 $(function(){
 
@@ -126,8 +125,21 @@ $(function(){
 		$("#media").append(el);
 	}
 
+	// FIXME:
+	// the first createOffer works for publisher but not subscriber
+	// the second createOffer works for subscriber but not for publisher
+	// ... why??
+	// ----------------------------------------------------------------
+	/*
 	pc.onnegotiationneeded = e =>
 		pc.createOffer().then(d => { console.log('set local desc'); pc.setLocalDescription(d) }).catch(log)
+		*/
+
+	pc.createOffer({
+		offerToReceiveVideo: false, 
+		offerToReceiveAudio: true
+	}).then(d => pc.setLocalDescription(d)).catch(log)
+	// ----------------------------------------------------------------
 
 	startSession = (sd) => {
 		console.log('start session')

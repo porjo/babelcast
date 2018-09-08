@@ -12,7 +12,6 @@ ws_uri += "/ws";
 var ws = new WebSocket(ws_uri);
 
 var pc;
-var sd_uri = loc.protocol + "//" + loc.host + path + "/sdp";
 
 var localStream;
 var audioTrack;
@@ -38,7 +37,7 @@ $(function(){
 			var params = {};
 			params.Username = $("#username").val();
 			params.Channel = $("#channel").val();
-			var val = {Key: 'connect', Value: params};
+			var val = {Key: 'connect_publisher', Value: params};
 			ws.send(JSON.stringify(val));
 			audioTrack.enabled = true;
 		} else {
@@ -76,7 +75,6 @@ $(function(){
 		audioTrack.stop()
 		pc.close()
 	};
-
 
 
 	//

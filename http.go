@@ -57,16 +57,16 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
 	c := NewConn(gconn)
-	defer c.conn.Close()
+	defer c.wsConn.Close()
 
-	c.Log("client connected, addr %s\n", c.conn.RemoteAddr())
+	c.Log("client connected, addr %s\n", c.wsConn.RemoteAddr())
 
 	go c.LogHandler(ctx)
 	// setup ping/pong to keep connection open
 	go c.PingHandler(ctx)
 
 	for {
-		msgType, raw, err := c.conn.ReadMessage()
+		msgType, raw, err := c.wsConn.ReadMessage()
 		if err != nil {
 			c.Log("ReadMessage err %s\n", err)
 			break
