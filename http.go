@@ -38,12 +38,15 @@ type wsMsg struct {
 }
 
 type CmdConnect struct {
-	Username           string
-	Channel            string
+	Username string
+	Channel  string
+}
+
+type CmdSession struct {
 	SessionDescription string
 }
 
-func producerHandler(w http.ResponseWriter, r *http.Request) {
+func publisherHandler(w http.ResponseWriter, r *http.Request) {
 
 	gconn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -53,14 +56,10 @@ func producerHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
-	c := &Conn{}
-	c.errChan = make(chan error)
-	c.infoChan = make(chan string)
-	// wrap Gorilla conn with our conn so we can extend functionality
-	c.conn = gconn
+	c := NewConn(gconn)
 	defer c.conn.Close()
 
-	log.Printf("WS %x: producer client connected, addr %s\n", c.conn.RemoteAddr(), c.conn.RemoteAddr())
+	c.Log("publisher client connected, addr %s\n", c.conn.RemoteAddr())
 
 	go c.LogHandler(ctx)
 	// setup ping/pong to keep connection open
@@ -69,11 +68,11 @@ func producerHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		msgType, raw, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Printf("WS %x: ReadMessage err %s\n", c.conn.RemoteAddr(), err)
+			c.Log("ReadMessage err %s\n", err)
 			break
 		}
 
-		log.Printf("WS %x: read message %s\n", c.conn.RemoteAddr(), string(raw))
+		c.Log("read message %s\n", string(raw))
 
 		if msgType == websocket.TextMessage {
 			var msg wsMsg
@@ -83,92 +82,45 @@ func producerHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			if msg.Key == "connect" {
+			switch msg.Key {
+			case "session":
+				cmd := CmdSession{}
+				err = json.Unmarshal(msg.Value, &cmd)
+				if err != nil {
+					c.errChan <- err
+					continue
+				}
+				err := c.setupSession(ctx, cmd)
+				if err != nil {
+					c.Log("setupSession error: %s\n", err)
+					c.errChan <- err
+					continue
+				}
+			case "connect":
 				cmd := CmdConnect{}
 				err = json.Unmarshal(msg.Value, &cmd)
 				if err != nil {
 					c.errChan <- err
 					continue
 				}
-				err := c.connectProducerHandler(ctx, cmd)
+				err := c.connectPublisher(ctx, cmd)
 				if err != nil {
-					log.Printf("connectHandler error: %s\n", err)
+					c.Log("connectPublisher error: %s\n", err)
 					c.errChan <- err
 					continue
 				}
 			}
 
 		} else {
-			log.Printf("unknown message type - close websocket\n")
+			c.Log("unknown message type - close websocket\n")
 			break
 		}
 	}
 	// this will trigger all goroutines to quit
 	ctxCancel()
-	log.Printf("WS %x: end handler\n", c.conn.RemoteAddr())
+	c.Log("end handler\n")
 }
 
-func consumerHandler(w http.ResponseWriter, r *http.Request) {
-
-	gconn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	ctx, ctxCancel := context.WithCancel(context.Background())
-
-	c := &Conn{}
-	c.errChan = make(chan error)
-	c.infoChan = make(chan string)
-	// wrap Gorilla conn with our conn so we can extend functionality
-	c.conn = gconn
-	defer c.conn.Close()
-
-	log.Printf("WS %x: consumer client connected, addr %s\n", c.conn.RemoteAddr(), c.conn.RemoteAddr())
-
-	go c.LogHandler(ctx)
-	// setup ping/pong to keep connection open
-	go c.PingHandler(ctx)
-
-	for {
-		msgType, raw, err := c.conn.ReadMessage()
-		if err != nil {
-			log.Printf("WS %x: ReadMessage err %s\n", c.conn.RemoteAddr(), err)
-			break
-		}
-
-		log.Printf("WS %x: read message %s\n", c.conn.RemoteAddr(), string(raw))
-
-		if msgType == websocket.TextMessage {
-			var msg wsMsg
-			err = json.Unmarshal(raw, &msg)
-			if err != nil {
-				c.errChan <- err
-				continue
-			}
-
-			if msg.Key == "connect" {
-				cmd := CmdConnect{}
-				err = json.Unmarshal(msg.Value, &cmd)
-				if err != nil {
-					c.errChan <- err
-					continue
-				}
-				err := c.connectConsumerHandler(ctx, cmd)
-				if err != nil {
-					log.Printf("connectHandler error: %s\n", err)
-					c.errChan <- err
-					continue
-				}
-			}
-
-		} else {
-			log.Printf("unknown message type - close websocket\n")
-			break
-		}
-	}
-	// this will trigger all goroutines to quit
-	ctxCancel()
-	log.Printf("WS %x: end handler\n", c.conn.RemoteAddr())
+func subscriberHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO
 }

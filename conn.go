@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -35,21 +36,32 @@ type Conn struct {
 	conn *websocket.Conn
 	sock mangos.Socket
 
-	errChan  chan error
-	infoChan chan string
+	errChan       chan error
+	infoChan      chan string
+	trackQuitChan chan struct{}
+
+	logger *log.Logger
 }
 
-func (c *Conn) connectProducerHandler(ctx context.Context, cmd CmdConnect) error {
+func NewConn(ws *websocket.Conn) *Conn {
+	c := &Conn{}
+	c.errChan = make(chan error)
+	c.infoChan = make(chan string)
+	c.trackQuitChan = make(chan struct{})
+	c.logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	// wrap Gorilla conn with our conn so we can extend functionality
+	c.conn = ws
+
+	return c
+}
+
+func (c *Conn) Log(format string, v ...interface{}) {
+	id := fmt.Sprintf("WS %x", c.conn.RemoteAddr())
+	c.logger.Printf(id+": "+format, v...)
+}
+
+func (c *Conn) setupSession(ctx context.Context, cmd CmdSession) error {
 	var err error
-
-	var channel string
-	//var username string
-
-	if cmd.Channel == "" {
-		return fmt.Errorf("channel cannot be empty")
-	}
-
-	channel = cmd.Channel
 
 	offer := cmd.SessionDescription
 	c.peer, err = NewPC(offer, c.rtcStateChangeHandler, c.rtcTrackHandler)
@@ -72,7 +84,24 @@ func (c *Conn) connectProducerHandler(ctx context.Context, cmd CmdConnect) error
 		return err
 	}
 
-	log.Printf("setting up producer for channel '%s'\n", channel)
+	return nil
+}
+
+func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
+	var err error
+	var channel string
+
+	if c.peer == nil {
+		return fmt.Errorf("webrtc session not established")
+	}
+
+	if cmd.Channel == "" {
+		return fmt.Errorf("channel cannot be empty")
+	}
+
+	channel = cmd.Channel
+
+	c.Log("setting up producer for channel '%s'\n", channel)
 	if c.sock, err = pub.NewSocket(); err != nil {
 		return fmt.Errorf("can't get new pub socket: %s", err)
 	}
@@ -84,10 +113,14 @@ func (c *Conn) connectProducerHandler(ctx context.Context, cmd CmdConnect) error
 	return nil
 }
 
-func (c *Conn) connectConsumerHandler(ctx context.Context, cmd CmdConnect) error {
+func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 	var err error
-
 	var channel string
+
+	if c.peer == nil {
+		return fmt.Errorf("webrtc session not established")
+	}
+
 	//var username string
 
 	if cmd.Channel == "" {
@@ -96,28 +129,7 @@ func (c *Conn) connectConsumerHandler(ctx context.Context, cmd CmdConnect) error
 
 	channel = cmd.Channel
 
-	offer := cmd.SessionDescription
-	c.peer, err = NewPC(offer, c.rtcStateChangeHandler, nil)
-	if err != nil {
-		return err
-	}
-
-	// Sets the LocalDescription, and starts our UDP listeners
-	answer, err := c.peer.pc.CreateAnswer(nil)
-	if err != nil {
-		return err
-	}
-
-	j, err := json.Marshal(answer.Sdp)
-	if err != nil {
-		return err
-	}
-	err = c.writeMsg(wsMsg{Key: "sd_answer", Value: j})
-	if err != nil {
-		return err
-	}
-
-	log.Printf("setting up consumer for channel '%s'\n", channel)
+	c.Log("setting up subscriber for channel '%s'\n", channel)
 	if c.sock, err = sub.NewSocket(); err != nil {
 		return fmt.Errorf("can't get new sub socket: %s", err)
 	}
@@ -127,7 +139,7 @@ func (c *Conn) connectConsumerHandler(ctx context.Context, cmd CmdConnect) error
 	}
 
 	go func() {
-		defer log.Printf("sub read goroutine quitting...\n")
+		defer c.Log("sub read goroutine quitting...\n")
 
 		var packet []byte
 		for {
@@ -156,7 +168,7 @@ func (c *Conn) writeMsg(val interface{}) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("WS %x: write message %s\n", c.conn.RemoteAddr(), string(j))
+	c.Log("write message %s\n", c.conn.RemoteAddr(), string(j))
 	if err = c.conn.WriteMessage(websocket.TextMessage, j); err != nil {
 		return err
 	}
@@ -166,19 +178,18 @@ func (c *Conn) writeMsg(val interface{}) error {
 
 // WebRTC callback function
 func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
-	fmt.Printf("rtcTrackHandler %+v\n", track)
 	go func() {
 		var err error
-		defer log.Printf("rtcTrackhandler goroutine quitting...\n")
+		defer c.Log("rtcTrackhandler goroutine quitting...\n")
 		for {
 			select {
-			//		case <-ctx.Done():
-			//			c.peer.Close()
-			//			return
+			case <-c.trackQuitChan:
+				return
 			case p := <-track.Packets:
-				fmt.Printf("peer packet %d\n", len(p.Payload))
-				if err = c.sock.Send(p.Payload); err != nil {
-					c.errChan <- fmt.Errorf("pub send failed: %s", err)
+				if c.sock != nil {
+					if err = c.sock.Send(p.Payload); err != nil {
+						c.errChan <- fmt.Errorf("pub send failed: %s", err)
+					}
 				}
 			}
 		}
@@ -192,13 +203,15 @@ func (c *Conn) rtcStateChangeHandler(connectionState ice.ConnectionState) {
 
 	switch connectionState {
 	case ice.ConnectionStateConnected:
-		log.Printf("ice connected\n")
-		log.Printf("remote SDP\n%s\n", c.peer.pc.RemoteDescription().Sdp)
-		log.Printf("local SDP\n%s\n", c.peer.pc.LocalDescription().Sdp)
+		c.Log("ice connected\n")
+		c.Log("remote SDP\n%s\n", c.peer.pc.RemoteDescription().Sdp)
+		c.Log("local SDP\n%s\n", c.peer.pc.LocalDescription().Sdp)
 		c.infoChan <- "ice connected"
 
 	case ice.ConnectionStateDisconnected:
-		log.Printf("ice disconnected\n")
+		c.Log("ice disconnected\n")
+		c.peer.Close()
+		close(c.trackQuitChan)
 
 		// non blocking channel write, as receiving goroutine may already have quit
 		select {
@@ -209,7 +222,7 @@ func (c *Conn) rtcStateChangeHandler(connectionState ice.ConnectionState) {
 }
 
 func (c *Conn) LogHandler(ctx context.Context) {
-	defer log.Printf("log goroutine quitting...\n")
+	defer c.Log("log goroutine quitting...\n")
 	for {
 		select {
 		case <-ctx.Done():
@@ -217,31 +230,31 @@ func (c *Conn) LogHandler(ctx context.Context) {
 		case err := <-c.errChan:
 			j, err := json.Marshal(err.Error())
 			if err != nil {
-				log.Printf("marshal err %s\n", err)
+				c.Log("marshal err %s\n", err)
 			}
 			m := wsMsg{Key: "error", Value: j}
 			err = c.writeMsg(m)
 			if err != nil {
-				log.Printf("writemsg err %s\n", err)
+				c.Log("writemsg err %s\n", err)
 			}
 			// end the WS session on error
 			c.conn.Close()
 		case info := <-c.infoChan:
 			j, err := json.Marshal(info)
 			if err != nil {
-				log.Printf("marshal err %s\n", err)
+				c.Log("marshal err %s\n", err)
 			}
 			m := wsMsg{Key: "info", Value: j}
 			err = c.writeMsg(m)
 			if err != nil {
-				log.Printf("writemsg err %s\n", err)
+				c.Log("writemsg err %s\n", err)
 			}
 		}
 	}
 }
 
 func (c *Conn) PingHandler(ctx context.Context) {
-	defer log.Printf("ws ping goroutine quitting...\n")
+	defer c.Log("ws ping goroutine quitting...\n")
 	pingCh := time.Tick(PingInterval)
 	for {
 		select {
@@ -251,7 +264,7 @@ func (c *Conn) PingHandler(ctx context.Context) {
 			// WriteControl can be called concurrently
 			err := c.conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(WriteWait))
 			if err != nil {
-				log.Printf("WS %x: ping client, err %s\n", c.conn.RemoteAddr(), err)
+				c.Log("ping client, err %s\n", c.conn.RemoteAddr(), err)
 				return
 			}
 		}

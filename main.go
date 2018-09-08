@@ -29,21 +29,21 @@ import (
 const httpTimeout = 15 * time.Second
 
 func main() {
-	webRootProducer := flag.String("webRootProducer", "htmlProducer", "web root directory for producer")
-	webRootConsumer := flag.String("webRootConsumer", "htmlConsumer", "web root directory for consumers")
+	webRootPublisher := flag.String("webRootPublisher", "htmlPublisher", "web root directory for publisher")
+	webRootSubscriber := flag.String("webRootSubscriber", "htmlSubscriber", "web root directory for subscribers")
 	port := flag.Int("port", 8080, "listen on this port")
 	flag.Parse()
 
 	log.Printf("Starting server...\n")
-	log.Printf("Set producer web root: %s\n", *webRootProducer)
-	log.Printf("Set consumer web root: %s\n", *webRootConsumer)
+	log.Printf("Set publisher web root: %s\n", *webRootPublisher)
+	log.Printf("Set subscriber web root: %s\n", *webRootSubscriber)
 
 	r := mux.NewRouter()
 
-	r.PathPrefix("/static/producer/").Handler(http.StripPrefix("/static/producer/", http.FileServer(http.Dir(*webRootProducer))))
-	r.PathPrefix("/static/consumer/").Handler(http.StripPrefix("/static/consumer/", http.FileServer(http.Dir(*webRootConsumer))))
-	r.HandleFunc("/ws/producer", producerHandler)
-	r.HandleFunc("/ws/consumer", consumerHandler)
+	r.PathPrefix("/static/publisher/").Handler(http.StripPrefix("/static/publisher/", http.FileServer(http.Dir(*webRootPublisher))))
+	r.PathPrefix("/static/subscriber/").Handler(http.StripPrefix("/static/subscriber/", http.FileServer(http.Dir(*webRootSubscriber))))
+	r.HandleFunc("/ws/publisher", publisherHandler)
+	r.HandleFunc("/ws/subscriber", subscriberHandler)
 
 	log.Printf("Listening on port :%d\n", *port)
 
