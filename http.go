@@ -110,11 +110,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
-				defer func(c *Conn) {
+				defer func() {
 					reg.Lock()
-					reg.Channels[c.channel] = false
+					if channel, ok := reg.Channels[c.channelName]; ok {
+						channel.PublisherCount--
+					}
 					reg.Unlock()
-				}(c)
+				}()
 			case "connect_subscriber":
 				cmd := CmdConnect{}
 				err = json.Unmarshal(msg.Value, &cmd)
@@ -128,6 +130,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
+				defer func() {
+					reg.Lock()
+					if channel, ok := reg.Channels[c.channelName]; ok {
+						channel.SubscriberCount--
+					}
+					reg.Unlock()
+				}()
 			}
 
 		} else {

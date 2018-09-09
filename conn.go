@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pions/webrtc"
 	"github.com/pions/webrtc/pkg/ice"
+	"github.com/pions/webrtc/pkg/rtp"
 	"nanomsg.org/go-mangos"
 	"nanomsg.org/go-mangos/protocol/sub"
 	"nanomsg.org/go-mangos/transport/inproc"
@@ -42,11 +43,12 @@ type Conn struct {
 
 	rtcPeer *WebRTCPeer
 	wsConn  *websocket.Conn
-	mSock   mangos.Socket
+	spSock  mangos.Socket
 
-	channel string
+	channelName string
 	// store channel name as 4 byte hash
-	channelHash []byte
+	// used as our pub/sub topic
+	spTopic []byte
 
 	errChan       chan error
 	infoChan      chan string
@@ -54,7 +56,7 @@ type Conn struct {
 
 	logger *log.Logger
 
-	lastTimestamp uint32
+	rtpLastTimestamp uint32
 
 	isPublisher bool
 	hasClosed   bool
@@ -117,30 +119,25 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	if channelRegexp.MatchString(cmd.Channel) {
 		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
-	c.channel = cmd.Channel
-	reg.Lock()
-	if inuse, _ := reg.Channels[c.channel]; inuse {
-		return fmt.Errorf("channel '%s' is already in use", c.channel)
-	} else {
-		reg.Channels[c.channel] = true
-	}
-	reg.Unlock()
+	c.channelName = cmd.Channel
 
-	c.Log("setting up publisher for channel '%s'\n", c.channel)
+	c.Log("setting up publisher for channel '%s'\n", c.channelName)
+
+	c.setTopic(c.channelName)
 
 	c.Lock()
-	// store a 32bit hash of the channel name in a 4 byte slice
-	c.channelHash = make([]byte, 4)
-	binary.LittleEndian.PutUint32(c.channelHash, hash(c.channel))
-	c.mSock = pubSocket
+	c.spSock = pubSocket
 	c.Unlock()
+
+	if err := reg.AddPublisher(c.channelName); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 	var err error
-	var channel string
 
 	if c.rtcPeer == nil {
 		return fmt.Errorf("webrtc session not established")
@@ -151,28 +148,35 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 	if cmd.Channel == "" {
 		return fmt.Errorf("channel cannot be empty")
 	}
+	if channelRegexp.MatchString(cmd.Channel) {
+		return fmt.Errorf("channel name must contain only alphanumeric characters")
+	}
 
-	channel = cmd.Channel
+	c.channelName = cmd.Channel
 
-	c.Log("setting up subscriber for channel '%s'\n", channel)
-	if c.mSock, err = sub.NewSocket(); err != nil {
+	c.Log("setting up subscriber for channel '%s'\n", c.channelName)
+	c.Lock()
+	if c.spSock, err = sub.NewSocket(); err != nil {
+		c.Unlock()
 		return fmt.Errorf("can't get new sub socket: %s", err)
 	}
-	c.mSock.AddTransport(inproc.NewTransport())
-	if err = c.mSock.Dial("inproc://babelcast/"); err != nil {
+	c.Unlock()
+	c.spSock.AddTransport(inproc.NewTransport())
+	if err = c.spSock.Dial("inproc://babelcast/"); err != nil {
 		return fmt.Errorf("sub can't dial %s", err)
 	}
 
+	c.setTopic(c.channelName)
 	c.Lock()
-	// store a 32bit hash of the channel name in a 4 byte slice
-	c.channelHash = make([]byte, 4)
-	binary.LittleEndian.PutUint32(c.channelHash, hash(cmd.Channel))
-
-	if err = c.mSock.SetOption(mangos.OptionSubscribe, c.channelHash); err != nil {
+	if err = c.spSock.SetOption(mangos.OptionSubscribe, c.spTopic); err != nil {
 		c.Unlock()
 		return fmt.Errorf("sub can't subscribe %s", err)
 	}
 	c.Unlock()
+
+	if err = reg.AddSubscriber(c.channelName); err != nil {
+		return err
+	}
 
 	go func() {
 		defer c.Log("sub read goroutine quitting...\n")
@@ -186,14 +190,24 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 				return
 			default:
 			}
-			if data, err = c.mSock.Recv(); err != nil {
+			if data, err = c.spSock.Recv(); err != nil {
 				c.errChan <- fmt.Errorf("sub sock recv err %s\n", err)
+				continue
 			}
 
-			sp := &SPMessage{}
-			sp.Decode(data)
+			rawPacket := data[4:]
+			packet := &rtp.Packet{}
+			if err = packet.Unmarshal(rawPacket); err != nil {
+				c.errChan <- fmt.Errorf("packet unmarshal err %s\n", err)
+				continue
+			}
 
-			s := webrtc.RTCSample{Data: sp.payload, Samples: sp.samples}
+			c.Lock()
+			samples := packet.Timestamp - c.rtpLastTimestamp
+			c.rtpLastTimestamp = packet.Timestamp
+			c.Unlock()
+
+			s := webrtc.RTCSample{Data: packet.Payload, Samples: samples}
 			c.rtcPeer.track.Samples <- s
 		}
 	}()
@@ -213,8 +227,8 @@ func (c *Conn) Close() {
 	if c.rtcPeer != nil {
 		c.rtcPeer.Close()
 	}
-	if c.mSock != nil && !c.isPublisher {
-		c.mSock.Close()
+	if c.spSock != nil && !c.isPublisher {
+		c.spSock.Close()
 	}
 	c.hasClosed = true
 }
@@ -245,18 +259,19 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 				return
 			case p := <-track.Packets:
 				c.Lock()
-				if c.mSock != nil {
-					ch := make([]byte, len(c.channelHash))
-					copy(ch, c.channelHash)
-					sp := &SPMessage{
-						samples:     p.Timestamp - c.lastTimestamp,
-						payload:     p.Payload,
-						channelHash: ch,
-					}
-					if err = c.mSock.Send(sp.Encode()); err != nil {
-						c.errChan <- fmt.Errorf("pub send failed: %s", err)
-					}
-					c.lastTimestamp = p.Timestamp
+				if c.spSock == nil {
+					// subscriber requested non-existent subscription spTopic
+					// this isn't an error as publisher may yet appear for that spTopic
+					c.Unlock()
+					continue
+				}
+				// mangoes socket requires []byte where leading bytes is the subscription spTopic
+				data := make([]byte, len(c.spTopic))
+				copy(data, c.spTopic)
+				packet, _ := p.Marshal()
+				data = append(data, packet...)
+				if err = c.spSock.Send(data); err != nil {
+					c.errChan <- fmt.Errorf("pub send failed: %s", err)
 				}
 				c.Unlock()
 			}
@@ -341,41 +356,16 @@ func (c *Conn) PingHandler(ctx context.Context) {
 	}
 }
 
+// store a 32bit hash of the channel name in a 4 byte slice
+func (c *Conn) setTopic(channelName string) {
+	c.Lock()
+	c.spTopic = make([]byte, 4)
+	binary.LittleEndian.PutUint32(c.spTopic, hash(c.channelName))
+	c.Unlock()
+}
+
 func hash(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return h.Sum32()
-}
-
-// SPMessage represents a message passed over Mangos socket
-type SPMessage struct {
-	samples     uint32
-	payload     []byte
-	channelHash []byte
-}
-
-// encode to []byte
-func (m *SPMessage) Encode() []byte {
-	if m.payload == nil || m.channelHash == nil {
-		return nil
-	}
-	data := make([]byte, len(m.channelHash))
-	copy(data, m.channelHash)
-	samples := make([]byte, 4)
-	binary.LittleEndian.PutUint32(samples, m.samples)
-	data = append(data, samples...)
-	data = append(data, m.payload...)
-	return data
-}
-
-// decode from []byte
-func (m *SPMessage) Decode(data []byte) {
-	if len(data) > 8 {
-		m.channelHash = data[:4]
-		m.samples = binary.LittleEndian.Uint32(data[4:8])
-		m.payload = data[8:]
-	} else {
-		m.channelHash = make([]byte, 0)
-		m.payload = make([]byte, 0)
-	}
 }
