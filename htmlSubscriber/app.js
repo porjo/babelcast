@@ -33,7 +33,6 @@ $(function(){
 			$("#output").show();
 			$("#input-form").hide();
 			var params = {};
-			params.Username = $("#username").val();
 			params.Channel = $("#channel").val();
 			var val = {Key: 'connect_subscriber', Value: params};
 			ws.send(JSON.stringify(val));
@@ -70,6 +69,7 @@ $(function(){
 	ws.onclose = function()	{
 		log("WS connection closed");
 		pc.close()
+		$("#media").hide()
 	};
 
 

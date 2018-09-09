@@ -23,6 +23,12 @@ type Client struct {
 }
 */
 
+func NewRegistry() *Registry {
+	r := &Registry{}
+	r.Channels = make(map[string]*Channel)
+	return r
+}
+
 func (r *Registry) AddPublisher(channelName string) error {
 	var channel *Channel
 	var ok bool
@@ -33,7 +39,6 @@ func (r *Registry) AddPublisher(channelName string) error {
 		r.Channels[channelName] = &Channel{PublisherCount: 1}
 	}
 	r.Unlock()
-
 	return nil
 }
 
@@ -48,6 +53,21 @@ func (r *Registry) AddSubscriber(channelName string) error {
 		r.Channels[channelName] = &Channel{SubscriberCount: 1}
 	}
 	r.Unlock()
-
 	return nil
+}
+
+func (r *Registry) RemovePublisher(channelName string) {
+	r.Lock()
+	if channel, ok := r.Channels[channelName]; ok {
+		channel.PublisherCount--
+	}
+	r.Unlock()
+}
+
+func (r *Registry) RemoveSubscriber(channelName string) {
+	r.Lock()
+	if channel, ok := r.Channels[channelName]; ok {
+		channel.SubscriberCount--
+	}
+	r.Unlock()
 }

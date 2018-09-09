@@ -38,8 +38,8 @@ type wsMsg struct {
 }
 
 type CmdConnect struct {
-	Username string
-	Channel  string
+	//Username string
+	Channel string
 }
 
 type CmdSession struct {
@@ -111,11 +111,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				defer func() {
-					reg.Lock()
-					if channel, ok := reg.Channels[c.channelName]; ok {
-						channel.PublisherCount--
-					}
-					reg.Unlock()
+					reg.RemovePublisher(c.channelName)
 				}()
 			case "connect_subscriber":
 				cmd := CmdConnect{}
@@ -131,11 +127,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				defer func() {
-					reg.Lock()
-					if channel, ok := reg.Channels[c.channelName]; ok {
-						channel.SubscriberCount--
-					}
-					reg.Unlock()
+					reg.RemoveSubscriber(c.channelName)
 				}()
 			}
 

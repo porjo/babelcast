@@ -33,7 +33,7 @@ const httpTimeout = 15 * time.Second
 
 var pubSocket mangos.Socket
 
-var reg Registry
+var reg *Registry
 
 func main() {
 	webRootPublisher := flag.String("webRootPublisher", "htmlPublisher", "web root directory for publisher")
@@ -61,7 +61,6 @@ func main() {
 	}
 
 	var err error
-
 	if pubSocket, err = pub.NewSocket(); err != nil {
 		log.Fatalf("can't get new pub socket: %s", err)
 	}
@@ -70,7 +69,7 @@ func main() {
 		log.Fatalf("can't listen on pub socket: %s", err)
 	}
 
-	reg.Channels = make(map[string]*Channel)
+	reg = NewRegistry()
 
 	log.Fatal(srv.ListenAndServe())
 }

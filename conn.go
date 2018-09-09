@@ -260,12 +260,11 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 			case p := <-track.Packets:
 				c.Lock()
 				if c.spSock == nil {
-					// subscriber requested non-existent subscription spTopic
-					// this isn't an error as publisher may yet appear for that spTopic
+					// publisher hasn't connected yet
 					c.Unlock()
 					continue
 				}
-				// mangoes socket requires []byte where leading bytes is the subscription spTopic
+				// mangoes socket requires []byte where leading bytes is the subscription topic
 				data := make([]byte, len(c.spTopic))
 				copy(data, c.spTopic)
 				packet, _ := p.Marshal()
