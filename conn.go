@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -37,6 +38,8 @@ import (
 var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
 
 type Conn struct {
+	sync.Mutex
+
 	rtcPeer *WebRTCPeer
 	wsConn  *websocket.Conn
 	mSock   mangos.Socket
@@ -125,11 +128,12 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 
 	c.Log("setting up publisher for channel '%s'\n", c.channel)
 
+	c.Lock()
 	// store a 32bit hash of the channel name in a 4 byte slice
 	c.channelHash = make([]byte, 4)
 	binary.LittleEndian.PutUint32(c.channelHash, hash(c.channel))
-
 	c.mSock = pubSocket
+	c.Unlock()
 
 	return nil
 }
@@ -159,13 +163,16 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 		return fmt.Errorf("sub can't dial %s", err)
 	}
 
+	c.Lock()
 	// store a 32bit hash of the channel name in a 4 byte slice
 	c.channelHash = make([]byte, 4)
 	binary.LittleEndian.PutUint32(c.channelHash, hash(cmd.Channel))
 
 	if err = c.mSock.SetOption(mangos.OptionSubscribe, c.channelHash); err != nil {
+		c.Unlock()
 		return fmt.Errorf("sub can't subscribe %s", err)
 	}
+	c.Unlock()
 
 	go func() {
 		defer c.Log("sub read goroutine quitting...\n")
@@ -195,6 +202,8 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 }
 
 func (c *Conn) Close() {
+	c.Lock()
+	defer c.Unlock()
 	if c.hasClosed {
 		return
 	}
@@ -216,6 +225,8 @@ func (c *Conn) writeMsg(val interface{}) error {
 		return err
 	}
 	c.Log("write message %s\n", string(j))
+	c.Lock()
+	defer c.Unlock()
 	if err = c.wsConn.WriteMessage(websocket.TextMessage, j); err != nil {
 		return err
 	}
@@ -233,17 +244,21 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 			case <-c.trackQuitChan:
 				return
 			case p := <-track.Packets:
+				c.Lock()
 				if c.mSock != nil {
+					ch := make([]byte, len(c.channelHash))
+					copy(ch, c.channelHash)
 					sp := &SPMessage{
 						samples:     p.Timestamp - c.lastTimestamp,
 						payload:     p.Payload,
-						channelHash: c.channelHash,
+						channelHash: ch,
 					}
 					if err = c.mSock.Send(sp.Encode()); err != nil {
 						c.errChan <- fmt.Errorf("pub send failed: %s", err)
 					}
 					c.lastTimestamp = p.Timestamp
 				}
+				c.Unlock()
 			}
 		}
 	}()
@@ -313,12 +328,15 @@ func (c *Conn) PingHandler(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-pingCh:
+			c.Lock()
 			// WriteControl can be called concurrently
 			err := c.wsConn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(WriteWait))
 			if err != nil {
+				c.Unlock()
 				c.Log("ping client, err %s\n", err)
 				return
 			}
+			c.Unlock()
 		}
 	}
 }
