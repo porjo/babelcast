@@ -1,6 +1,6 @@
 # Babelcast
 
-A server which allows audio producers to broadcast to consumers on a channel
+A server which allows audio publishers to broadcast to subscribers on a channel.
 
 It uses websockets for signalling & WebRTC for audio.
 
@@ -8,7 +8,11 @@ It uses websockets for signalling & WebRTC for audio.
 
 ```
 $ go get github.com/porjo/babelcast
-$ babelcast -webRoot $GOPATH/src/github.com/porjo/babelcast/html -port 8080
+$ babelcast \
+	-webRootPublisher $GOPATH/src/github.com/porjo/babelcast/htmlPublisher \
+	-webRootSubscriber $GOPATH/src/github.com/porjo/babelcast/htmlSubscriber \
+	-port 8080
 ```
 
-Point your web browser at http://localhost:8080/
+- Publishers should point their web browser to http://localhost:8080/static/publisher/
+- Subscribers should point their web browser to http://localhost:8080/static/subscriber/
