@@ -41,7 +41,8 @@ type Conn struct {
 	wsConn  *websocket.Conn
 	mSock   mangos.Socket
 
-	// store channel name as 32bit hash
+	channel string
+	// store channel name as 4 byte hash
 	channelHash []byte
 
 	errChan       chan error
@@ -51,6 +52,9 @@ type Conn struct {
 	logger *log.Logger
 
 	lastTimestamp uint32
+
+	isPublisher bool
+	hasClosed   bool
 }
 
 func NewConn(ws *websocket.Conn) *Conn {
@@ -110,12 +114,20 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	if channelRegexp.MatchString(cmd.Channel) {
 		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
+	c.channel = cmd.Channel
+	reg.Lock()
+	if inuse, _ := reg.Channels[c.channel]; inuse {
+		return fmt.Errorf("channel '%s' is already in use", c.channel)
+	} else {
+		reg.Channels[c.channel] = true
+	}
+	reg.Unlock()
 
-	c.Log("setting up publisher for channel '%s'\n", cmd.Channel)
+	c.Log("setting up publisher for channel '%s'\n", c.channel)
 
 	// store a 32bit hash of the channel name in a 4 byte slice
 	c.channelHash = make([]byte, 4)
-	binary.LittleEndian.PutUint32(c.channelHash, hash(cmd.Channel))
+	binary.LittleEndian.PutUint32(c.channelHash, hash(c.channel))
 
 	c.mSock = pubSocket
 
@@ -163,8 +175,7 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 
 			select {
 			case <-ctx.Done():
-				c.rtcPeer.Close()
-				c.mSock.Close()
+				c.Close()
 				return
 			default:
 			}
@@ -182,6 +193,22 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 	}()
 
 	return nil
+}
+
+func (c *Conn) Close() {
+	if c.hasClosed {
+		return
+	}
+	if c.trackQuitChan != nil {
+		close(c.trackQuitChan)
+	}
+	if c.rtcPeer != nil {
+		c.rtcPeer.Close()
+	}
+	if c.mSock != nil && !c.isPublisher {
+		c.mSock.Close()
+	}
+	c.hasClosed = true
 }
 
 func (c *Conn) writeMsg(val interface{}) error {
@@ -237,8 +264,7 @@ func (c *Conn) rtcStateChangeHandler(connectionState ice.ConnectionState) {
 
 	case ice.ConnectionStateDisconnected:
 		c.Log("ice disconnected\n")
-		c.rtcPeer.Close()
-		close(c.trackQuitChan)
+		c.Close()
 
 		// non blocking channel write, as receiving goroutine may already have quit
 		select {
@@ -265,7 +291,7 @@ func (c *Conn) LogHandler(ctx context.Context) {
 				c.Log("writemsg err %s\n", err)
 			}
 			// end the WS session on error
-			c.wsConn.Close()
+			c.Close()
 		case info := <-c.infoChan:
 			j, err := json.Marshal(info)
 			if err != nil {
@@ -291,7 +317,7 @@ func (c *Conn) PingHandler(ctx context.Context) {
 			// WriteControl can be called concurrently
 			err := c.wsConn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(WriteWait))
 			if err != nil {
-				c.Log("ping client, err %s\n", c.wsConn.RemoteAddr(), err)
+				c.Log("ping client, err %s\n", err)
 				return
 			}
 		}

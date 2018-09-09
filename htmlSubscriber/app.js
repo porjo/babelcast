@@ -31,6 +31,7 @@ $(function(){
 	$("#connect-button").click(function() {
 		if (ws.readyState === 1) {
 			$("#output").show();
+			$("#input-form").hide();
 			var params = {};
 			params.Username = $("#username").val();
 			params.Channel = $("#channel").val();
@@ -132,7 +133,7 @@ $(function(){
 	// ----------------------------------------------------------------
 	/*
 	pc.onnegotiationneeded = e =>
-		pc.createOffer().then(d => { console.log('set local desc'); pc.setLocalDescription(d) }).catch(log)
+		pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
 		*/
 
 	pc.createOffer({
@@ -142,7 +143,6 @@ $(function(){
 	// ----------------------------------------------------------------
 
 	startSession = (sd) => {
-		console.log('start session')
 		try {
 			pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}))
 		} catch (e) {

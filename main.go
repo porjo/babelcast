@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -32,6 +33,15 @@ import (
 const httpTimeout = 15 * time.Second
 
 var pubSocket mangos.Socket
+
+// keep track of which channels are being used
+// only permit one publisher per channel
+type Registry struct {
+	sync.Mutex
+	Channels map[string]bool
+}
+
+var reg Registry
 
 func main() {
 	webRootPublisher := flag.String("webRootPublisher", "htmlPublisher", "web root directory for publisher")
@@ -67,6 +77,8 @@ func main() {
 	if err = pubSocket.Listen("inproc://babelcast/"); err != nil {
 		log.Fatalf("can't listen on pub socket: %s", err)
 	}
+
+	reg.Channels = make(map[string]bool)
 
 	log.Fatal(srv.ListenAndServe())
 }

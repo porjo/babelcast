@@ -34,6 +34,7 @@ $(function(){
 	$("#connect-button").click(function() {
 		if (ws.readyState === 1) {
 			$("#output").show();
+			$("#input-form").hide();
 			var params = {};
 			params.Username = $("#username").val();
 			params.Channel = $("#channel").val();
@@ -72,7 +73,9 @@ $(function(){
 
 	ws.onclose = function()	{
 		log("WS connection closed");
-		audioTrack.stop()
+		if (audioTrack) {
+			audioTrack.stop()
+		}
 		pc.close()
 	};
 
@@ -91,7 +94,6 @@ $(function(){
 
 	navigator.mediaDevices.getUserMedia({video: false, audio: true})
 		.then(stream => {
-			console.log('add stream')
 			localStream = stream
 			audioTrack = stream.getAudioTracks()[0];
 			pc.addStream(stream)
@@ -133,10 +135,9 @@ $(function(){
 	}
 
 	pc.onnegotiationneeded = e =>
-		pc.createOffer().then(d => { console.log('set local desc'); pc.setLocalDescription(d) }).catch(log)
+		pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
 
 	startSession = (sd) => {
-		console.log('start session')
 		try {
 			pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}))
 		} catch (e) {

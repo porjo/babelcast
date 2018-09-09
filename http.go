@@ -57,7 +57,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
 	c := NewConn(gconn)
-	defer c.wsConn.Close()
+	defer c.Close()
 
 	c.Log("client connected, addr %s\n", c.wsConn.RemoteAddr())
 
@@ -97,6 +97,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 			case "connect_publisher":
+				c.isPublisher = true
 				cmd := CmdConnect{}
 				err = json.Unmarshal(msg.Value, &cmd)
 				if err != nil {
@@ -109,6 +110,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
+				defer func(c *Conn) {
+					reg.Lock()
+					reg.Channels[c.channel] = false
+					reg.Unlock()
+				}(c)
 			case "connect_subscriber":
 				cmd := CmdConnect{}
 				err = json.Unmarshal(msg.Value, &cmd)
