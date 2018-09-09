@@ -183,11 +183,10 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 				c.errChan <- fmt.Errorf("sub sock recv err %s\n", err)
 			}
 
-			// data contains [channel name, sample count, opus packet]
-			samples := binary.LittleEndian.Uint32(data[4:8])
-			payload := data[8:]
+			sp := &SPMessage{}
+			sp.Decode(data)
 
-			s := webrtc.RTCSample{Data: payload, Samples: samples}
+			s := webrtc.RTCSample{Data: sp.payload, Samples: sp.samples}
 			c.rtcPeer.track.Samples <- s
 		}
 	}()
@@ -235,12 +234,12 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 				return
 			case p := <-track.Packets:
 				if c.mSock != nil {
-					// store the sample count in a 4 byte slice before our payload
-					samples := make([]byte, 4)
-					binary.LittleEndian.PutUint32(samples, p.Timestamp-c.lastTimestamp)
-					head := append(c.channelHash, samples...)
-					data := append(head, p.Payload...)
-					if err = c.mSock.Send(data); err != nil {
+					sp := &SPMessage{
+						samples:     p.Timestamp - c.lastTimestamp,
+						payload:     p.Payload,
+						channelHash: c.channelHash,
+					}
+					if err = c.mSock.Send(sp.Encode()); err != nil {
 						c.errChan <- fmt.Errorf("pub send failed: %s", err)
 					}
 					c.lastTimestamp = p.Timestamp
@@ -328,4 +327,37 @@ func hash(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return h.Sum32()
+}
+
+// SPMessage represents a message passed over Mangos socket
+type SPMessage struct {
+	samples     uint32
+	payload     []byte
+	channelHash []byte
+}
+
+// encode to []byte
+func (m *SPMessage) Encode() []byte {
+	if m.payload == nil || m.channelHash == nil {
+		return nil
+	}
+	data := make([]byte, len(m.channelHash))
+	copy(data, m.channelHash)
+	samples := make([]byte, 4)
+	binary.LittleEndian.PutUint32(samples, m.samples)
+	data = append(data, samples...)
+	data = append(data, m.payload...)
+	return data
+}
+
+// decode from []byte
+func (m *SPMessage) Decode(data []byte) {
+	if len(data) > 8 {
+		m.channelHash = data[:4]
+		m.samples = binary.LittleEndian.Uint32(data[4:8])
+		m.payload = data[8:]
+	} else {
+		m.channelHash = make([]byte, 0)
+		m.payload = make([]byte, 0)
+	}
 }
