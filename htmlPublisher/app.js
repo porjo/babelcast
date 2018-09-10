@@ -18,8 +18,11 @@ var audioTrack;
 
 $(function(){
 
-	var log = m => {
-		console.log(m)
+	var debug = (...m) => {
+		console.log(...m)
+	}
+	var log = (...m) => {
+		console.log(...m)
 		// strip html
 		var a = $("<div />").text(m).html();
 		$("#status").prepend("<div class='message'>" + a + '</div>');
@@ -31,7 +34,10 @@ $(function(){
 		$("#messages").prepend("<div class='message'><span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span></div>");
 	}
 
-	$("#connect-button").click(function() {
+	$("#reload").click(() => window.location.reload(false) );
+
+	$("#input-form").submit(e => {
+		e.preventDefault();
 		if (ws.readyState === 1) {
 			$("#output").show();
 			$("#input-form").hide();
@@ -102,23 +108,21 @@ $(function(){
 		.catch(log)
 
 	pc.oniceconnectionstatechange = e => {
+		debug("ICE state:", pc.iceConnectionState)
 		switch (pc.iceConnectionState) {
 			case "new":
 			case "checking":
-				log("ICE checking")
-				break
-			case "connected":
-				log("ICE connected")
-				$("#spinner").hide()
-				$("#connect-button").show()
-				break
 			case "failed":
 			case "disconnected":
 			case "closed":
-				log("ICE stopped")
+			case "completed":
+				break
+			case "connected":
+				$("#spinner").hide()
+				$("#connect-button").show()
 				break
 			default:
-				console.log("ice state unknown", e)
+				debug("ice state unknown", e)
 				break
 		}
 	}

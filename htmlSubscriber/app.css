@@ -1,6 +1,15 @@
+html {
+	margin: 0;
+	padding: 0;
+}
+
 body {
 	line-height: 1;
 	font-family: sans-serif;
+	padding: 5px;
+	margin: 0;
+	background-image: url('img/whitenoise.png');
+	background-repeat: repeat;
 }
 
 input, textarea {
@@ -9,8 +18,6 @@ input, textarea {
 
 #input-form {
 	padding: 20px;
-	border: 1px #bbb solid;
-	border-radius: 5px;
 }
 
 #input-form table {
@@ -34,6 +41,11 @@ input, textarea {
 	text-align: center;
 }
 
+.main-container {
+	padding: 10px;
+	border-radius: 5px;
+}
+
 #footer {
 	margin-top: 40px;
 	font-size: 0.8em;
@@ -41,11 +53,6 @@ input, textarea {
 	padding: 10px;
 }
 
-#connect-button {
-	width: 200px;
-	height: 50px;
-	margin: 20px 10px;
-}
 #url {
 	height: 50px;
 }
@@ -70,6 +77,7 @@ input, textarea {
 	border-radius: 5px;
 	padding: 10px;
 	text-align: left;
+	background-color: #fff;
 }
 
 #messages, #status {
@@ -86,6 +94,69 @@ input, textarea {
 #messages .sender, #messages .time {
 	padding-right: 10px;
 	width: 200px;
+}
+
+.title {
+	font-family: 'Pacifico', cursive;
+	margin: 10px;
+	padding-bottom: 20px;
+	border-bottom: 1px #ddd solid;
+}
+.logo {
+	font-size: 2em;
+	margin: 0 10px;
+}
+.subtitle {
+	font-size: 1.2em;
+	color: blue;
+	margin: 0 10px;
+}
+
+#connect-button {
+	width: 200px;
+	height: 50px;
+	margin: 20px 10px;
+}
+
+#github-logo {
+	margin: 0 10px;
+	height: 20px;
+	opacity: 0.4;
+	filter: grayscale(100%);
+}
+
+#reload {
+	font-size: 1em;
+	width: 200px;
+	height: 50px;
+}
+
+#reload .symbol {
+	margin: 0 5px;
+	font-size: 1.2em;
+}
+
+/* Button */
+
+/* This button was generated using CSSButtonGenerator.com */
+.button {
+	box-shadow: inset 0px 1px 0px 0px #ffffff;
+	background-color: #f9f9f9;
+	border: 1px solid #bdbdbd;
+	border-radius: 5px;
+	color: #666666;
+	font-size: 1em;
+	font-weight: bold;
+	text-align: center;
+	text-shadow: 1px 1px 0px #ffffff;
+}
+.button:hover {
+	background-color:#e9e9e9;
+	cursor: pointer;
+}
+.button:active {
+	position:relative;
+	top:1px;
 }
 
 
