@@ -70,11 +70,16 @@ $(function(){
 					break;
 				case 'channels':
 					$("#channels ul").html();
+					$("#nochannels").hide();
 					var channels = wsMsg.Value
-					channels.forEach((e) => {
-						var $c = $("<li/>").addClass('channel').text(e)
-						$("#channels ul").append($c);
-					});
+					if(channels.length == 0) {
+						$("#nochannels").show();
+					} else {
+						channels.forEach((e) => {
+							var $c = $("<li/>").addClass('channel').text(e)
+							$("#channels ul").append($c);
+						});
+					}
 					$("#channels").show();
 					break;
 			}
