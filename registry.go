@@ -51,10 +51,10 @@ func (r *Registry) AddSubscriber(channelName string) error {
 	var ok bool
 
 	r.Lock()
-	if channel, ok = r.Channels[channelName]; ok {
+	if channel, ok = r.Channels[channelName]; ok && channel.Active {
 		channel.SubscriberCount++
 	} else {
-		r.Channels[channelName] = &Channel{SubscriberCount: 1}
+		return fmt.Errorf("channel '%s' not ready", channelName)
 	}
 	r.Unlock()
 	return nil
@@ -83,7 +83,7 @@ func (r *Registry) GetChannels() []string {
 	r.Lock()
 	defer r.Unlock()
 	channels := make([]string, 0)
-	for name, c := range reg.Channels {
+	for name, c := range r.Channels {
 		if c.Active {
 			channels = append(channels, name)
 		}
