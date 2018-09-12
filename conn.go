@@ -15,6 +15,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -29,11 +30,13 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pions/webrtc"
 	"github.com/pions/webrtc/pkg/ice"
-	"github.com/pions/webrtc/pkg/rtp"
+	"github.com/pions/webrtc/pkg/media/samplebuilder"
 	"nanomsg.org/go-mangos"
 	"nanomsg.org/go-mangos/protocol/sub"
 	"nanomsg.org/go-mangos/transport/inproc"
 )
+
+const maxLate = 50 // number of packets to skip
 
 // channel name should NOT match the negation of valid characters
 var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
@@ -55,8 +58,6 @@ type Conn struct {
 	trackQuitChan chan struct{}
 
 	logger *log.Logger
-
-	rtpLastTimestamp uint32
 
 	isPublisher bool
 	hasClosed   bool
@@ -195,20 +196,12 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 				continue
 			}
 
-			rawPacket := data[4:]
-			packet := &rtp.Packet{}
-			if err = packet.Unmarshal(rawPacket); err != nil {
-				c.errChan <- fmt.Errorf("packet unmarshal err %s\n", err)
-				continue
-			}
+			// discard topic data[:4]
+			sample := webrtc.RTCSample{}
+			sample.Samples = binary.LittleEndian.Uint32(data[4:8])
+			sample.Data = data[8:]
 
-			c.Lock()
-			samples := packet.Timestamp - c.rtpLastTimestamp
-			c.rtpLastTimestamp = packet.Timestamp
-			c.Unlock()
-
-			s := webrtc.RTCSample{Data: packet.Payload, Samples: samples}
-			c.rtcPeer.track.Samples <- s
+			c.rtcPeer.track.Samples <- sample
 		}
 	}()
 
@@ -252,6 +245,7 @@ func (c *Conn) writeMsg(val interface{}) error {
 func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 	go func() {
 		var err error
+		sb := samplebuilder.New(maxLate)
 		defer c.Log("rtcTrackhandler goroutine quitting...\n")
 		for {
 			select {
@@ -264,12 +258,19 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 					c.Unlock()
 					continue
 				}
+				c.Unlock()
+				// packet goes into samplebuilder, next valid sample comes out
+				sb.Push(p)
+				sample := sb.Pop()
+				if sample == nil {
+					continue
+				}
+				c.Lock()
 				// mangoes socket requires []byte where leading bytes is the subscription topic
-				data := make([]byte, len(c.spTopic))
-				copy(data, c.spTopic)
-				packet, _ := p.Marshal()
-				data = append(data, packet...)
-				if err = c.spSock.Send(data); err != nil {
+				buf := bytes.NewBuffer(c.spTopic)
+				binary.Write(buf, binary.LittleEndian, sample.Samples)
+				buf.Write(sample.Data)
+				if err = c.spSock.Send(buf.Bytes()); err != nil {
 					c.errChan <- fmt.Errorf("pub send failed: %s", err)
 				}
 				c.Unlock()
