@@ -96,6 +96,19 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
+				// send list of channels to client
+				channels := reg.GetChannels()
+				j, err := json.Marshal(channels)
+				if err != nil {
+					c.Log("getchannels marshal: %s\n", err)
+					continue
+				}
+				m := wsMsg{Key: "channels", Value: j}
+				err = c.writeMsg(m)
+				if err != nil {
+					c.Log("%s\n", err)
+					continue
+				}
 			case "connect_publisher":
 				c.isPublisher = true
 				cmd := CmdConnect{}

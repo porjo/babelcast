@@ -13,32 +13,27 @@
 	<body>
 		<div class="container main-container">
 			<div class='title'><span class='logo'>Babelcast</span><span class='subtitle'>Subscriber</span></div>
-			<form id="input-form">
-				<table>
-					<tr>
-						<th>Channel:</th>
-						<td><input type='text' id='channel' required /></td>
-					</tr>
-				</table>
-				<button id='connect-button' class='button hidden'>Connect</button>
-				<div id='spinner' class='hidden'>
-					<p>Negotiating connection...</p>
-					<div class="sk-fading-circle">
-						<div class="sk-circle1 sk-circle"></div>
-						<div class="sk-circle2 sk-circle"></div>
-						<div class="sk-circle3 sk-circle"></div>
-						<div class="sk-circle4 sk-circle"></div>
-						<div class="sk-circle5 sk-circle"></div>
-						<div class="sk-circle6 sk-circle"></div>
-						<div class="sk-circle7 sk-circle"></div>
-						<div class="sk-circle8 sk-circle"></div>
-						<div class="sk-circle9 sk-circle"></div>
-						<div class="sk-circle10 sk-circle"></div>
-						<div class="sk-circle11 sk-circle"></div>
-						<div class="sk-circle12 sk-circle"></div>
-					</div>
+			<div id="channels" class='hidden'>
+				<h3>Channels</h3>
+				<ul></ul>
+			</div>
+			<div id='spinner' class='hidden'>
+				<p>Negotiating connection...</p>
+				<div class="sk-fading-circle">
+					<div class="sk-circle1 sk-circle"></div>
+					<div class="sk-circle2 sk-circle"></div>
+					<div class="sk-circle3 sk-circle"></div>
+					<div class="sk-circle4 sk-circle"></div>
+					<div class="sk-circle5 sk-circle"></div>
+					<div class="sk-circle6 sk-circle"></div>
+					<div class="sk-circle7 sk-circle"></div>
+					<div class="sk-circle8 sk-circle"></div>
+					<div class="sk-circle9 sk-circle"></div>
+					<div class="sk-circle10 sk-circle"></div>
+					<div class="sk-circle11 sk-circle"></div>
+					<div class="sk-circle12 sk-circle"></div>
 				</div>
-			</form>
+			</div>
 
 			<div id='output' class='hidden'>
 				<div id='media'></div>

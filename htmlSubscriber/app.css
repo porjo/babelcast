@@ -136,6 +136,21 @@ input, textarea {
 	font-size: 1.2em;
 }
 
+#channels ul {
+	padding: 0;
+}
+
+.channel {
+	padding: 10px;
+	border: 1px solid #bbb;
+	border-radius: 5px;
+	max-width: 400px;
+	cursor: pointer;
+	list-style-type: none;
+	margin: 5px auto;
+	background-color: #fff;
+}
+
 /* Button */
 
 /* This button was generated using CSSButtonGenerator.com */

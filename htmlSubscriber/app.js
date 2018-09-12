@@ -33,13 +33,13 @@ $(function(){
 
 	$("#reload").click(() => window.location.reload(false) );
 
-	$("#input-form").submit(e => {
-		e.preventDefault();
+	$("#channels").on('click', '.channel', function() {
 		if (ws.readyState === 1) {
 			$("#output").show();
-			$("#input-form").hide();
+			$("#channels").hide();
 			var params = {};
-			params.Channel = $("#channel").val();
+			params.Channel = $(this).text();
+			console.log(params);
 			var val = {Key: 'connect_subscriber', Value: params};
 			ws.send(JSON.stringify(val));
 		} else {
@@ -67,6 +67,15 @@ $(function(){
 					break;
 				case 'sd_answer':
 					startSession(wsMsg.Value);
+					break;
+				case 'channels':
+					$("#channels ul").html();
+					var channels = wsMsg.Value
+					channels.forEach((e) => {
+						var $c = $("<li/>").addClass('channel').text(e)
+						$("#channels ul").append($c);
+					});
+					$("#channels").show();
 					break;
 			}
 		}
@@ -100,7 +109,6 @@ $(function(){
 			case "connected":
 				log("ICE connected")
 				$("#spinner").hide()
-				$("#connect-button").show()
 				break
 			case "failed":
 			case "disconnected":
