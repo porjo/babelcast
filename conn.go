@@ -120,6 +120,11 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	if channelRegexp.MatchString(cmd.Channel) {
 		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
+
+	if publisherPassword != "" && cmd.Password != publisherPassword {
+		return fmt.Errorf("incorrect password")
+	}
+
 	c.channelName = cmd.Channel
 
 	c.Log("setting up publisher for channel '%s'\n", c.channelName)
@@ -222,6 +227,9 @@ func (c *Conn) Close() {
 	}
 	if c.spSock != nil && !c.isPublisher {
 		c.spSock.Close()
+	}
+	if c.wsConn != nil {
+		c.wsConn.Close()
 	}
 	c.hasClosed = true
 }

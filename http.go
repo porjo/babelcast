@@ -39,7 +39,8 @@ type wsMsg struct {
 
 type CmdConnect struct {
 	//Username string
-	Channel string
+	Channel  string
+	Password string
 }
 
 type CmdSession struct {

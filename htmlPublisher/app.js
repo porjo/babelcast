@@ -43,6 +43,7 @@ $(function(){
 			$("#input-form").hide();
 			var params = {};
 			params.Channel = $("#channel").val();
+			params.Password = $("#password").val();
 			var val = {Key: 'connect_publisher', Value: params};
 			ws.send(JSON.stringify(val));
 			audioTrack.enabled = true;

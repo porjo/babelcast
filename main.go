@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -32,6 +33,7 @@ import (
 const httpTimeout = 15 * time.Second
 
 var pubSocket mangos.Socket
+var publisherPassword = ""
 
 var reg *Registry
 
@@ -44,6 +46,11 @@ func main() {
 	log.Printf("Starting server...\n")
 	log.Printf("Set publisher web root: %s\n", *webRootPublisher)
 	log.Printf("Set subscriber web root: %s\n", *webRootSubscriber)
+
+	publisherPassword = os.Getenv("PUBLISHER_PASSWORD")
+	if publisherPassword != "" {
+		log.Printf("Publisher password set\n")
+	}
 
 	r := mux.NewRouter()
 
