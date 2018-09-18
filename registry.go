@@ -34,15 +34,16 @@ func (r *Registry) AddPublisher(channelName string) error {
 	var channel *Channel
 	var ok bool
 	r.Lock()
+	defer r.Unlock()
 	if channel, ok = r.Channels[channelName]; ok {
-		if channel.PublisherCount != 0 {
+		if channel.PublisherCount > 0 {
 			return fmt.Errorf("channel '%s' is already in use", channelName)
 		}
+		channel.PublisherCount++
 		channel.Active = true
 	} else {
 		r.Channels[channelName] = &Channel{PublisherCount: 1, Active: true}
 	}
-	r.Unlock()
 	return nil
 }
 
@@ -51,32 +52,32 @@ func (r *Registry) AddSubscriber(channelName string) error {
 	var ok bool
 
 	r.Lock()
+	defer r.Unlock()
 	if channel, ok = r.Channels[channelName]; ok && channel.Active {
 		channel.SubscriberCount++
 	} else {
 		return fmt.Errorf("channel '%s' not ready", channelName)
 	}
-	r.Unlock()
 	return nil
 }
 
 func (r *Registry) RemovePublisher(channelName string) {
 	r.Lock()
+	defer r.Unlock()
 	if channel, ok := r.Channels[channelName]; ok {
 		channel.PublisherCount--
 		if channel.PublisherCount == 0 {
 			channel.Active = false
 		}
 	}
-	r.Unlock()
 }
 
 func (r *Registry) RemoveSubscriber(channelName string) {
 	r.Lock()
+	defer r.Unlock()
 	if channel, ok := r.Channels[channelName]; ok {
 		channel.SubscriberCount--
 	}
-	r.Unlock()
 }
 
 func (r *Registry) GetChannels() []string {

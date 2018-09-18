@@ -97,6 +97,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
+				c.Log("before channels \n")
 				// send list of channels to client
 				channels := reg.GetChannels()
 				j, err := json.Marshal(channels)
@@ -104,6 +105,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.Log("getchannels marshal: %s\n", err)
 					continue
 				}
+				c.Log("after channels %v\n", channels)
 				m := wsMsg{Key: "channels", Value: j}
 				err = c.writeMsg(m)
 				if err != nil {

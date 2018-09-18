@@ -36,6 +36,16 @@ $(function(){
 
 	$("#reload").click(() => window.location.reload(false) );
 
+	$("#microphone").click(function() {
+		toggleMic($(this))
+	});
+
+	toggleMic = function($el) {
+		$el.toggleClass("icon-mute icon-mic on")
+		audioTrack.enabled = $el.hasClass("icon-mic")
+
+	}
+
 	$("#input-form").submit(e => {
 		e.preventDefault();
 		if (ws.readyState === 1) {
@@ -46,7 +56,7 @@ $(function(){
 			params.Password = $("#password").val();
 			var val = {Key: 'connect_publisher', Value: params};
 			ws.send(JSON.stringify(val));
-			audioTrack.enabled = true;
+			toggleMic()
 		} else {
 			log("WS socket not ready");
 		}

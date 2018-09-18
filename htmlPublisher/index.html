@@ -7,6 +7,7 @@
 		<title>Babelcast Publisher</title>
 
 		<link href="app.css" rel="stylesheet">
+		<link href="fontello/css/fontello.css" rel="stylesheet">
 		<link href="https://fonts.googleapis.com/css?family=Pacifico" rel="stylesheet">
 
 	</head>
@@ -46,7 +47,7 @@
 
 			<div id='output' class='hidden'>
 				<div id="signal-meter">
-					<span class="label">Microphone Signal:</span>
+					<span class='icon-mute' id='microphone'></span>
 					<meter high="0.25" max="1" value="0"></meter>
 				</div>
 				<h3>Status</h3>
@@ -54,7 +55,7 @@
 				<button id='reload' class='button'><span class='symbol'>&#x21ba;</span>Reload</button>
 			</div>
 			<div id='footer'>
-				<a href='https://github.com/porjo/babelcast'><img id='github-logo' src='img/github-logo.svg'>Github Project</a>
+				<a href='https://github.com/porjo/babelcast'><span class='icon-github-circled' id='github-logo'></span>Github Project</a>
 			</div>
 		</div>
 

@@ -125,8 +125,9 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 		return fmt.Errorf("incorrect password")
 	}
 
+	c.Lock()
 	c.channelName = cmd.Channel
-
+	c.Unlock()
 	c.Log("setting up publisher for channel '%s'\n", c.channelName)
 
 	c.setTopic(c.channelName)

@@ -119,11 +119,20 @@ input, textarea {
 }
 
 #github-logo {
-	margin: 0 10px;
-	height: 20px;
-	opacity: 0.4;
-	filter: grayscale(100%);
+	font-size: 2em;
+	color: #555;
 }
+
+#microphone {
+	font-size: 2em;
+	cursor: pointer;
+	color: #555;
+}
+
+#microphone.on {
+	color: red;
+}
+
 
 #reload {
 	font-size: 1em;
