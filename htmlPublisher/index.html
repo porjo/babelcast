@@ -45,6 +45,10 @@
 			</form>
 
 			<div id='output' class='hidden'>
+				<div id="signal-meter">
+					<span class="label">Microphone Signal:</span>
+					<meter high="0.25" max="1" value="0"></meter>
+				</div>
 				<h3>Status</h3>
 				<div id="status"></div>
 				<button id='reload' class='button'><span class='symbol'>&#x21ba;</span>Reload</button>
@@ -57,5 +61,6 @@
 
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 		<script src="app.js"></script>
+		<script src="soundmeter.js"></script>
 	</body>
 </html>

@@ -39,7 +39,6 @@ $(function(){
 			$("#channels").hide();
 			var params = {};
 			params.Channel = $(this).text();
-			console.log(params);
 			var val = {Key: 'connect_subscriber', Value: params};
 			ws.send(JSON.stringify(val));
 		} else {

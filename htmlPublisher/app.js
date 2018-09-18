@@ -98,13 +98,40 @@ $(function(){
 		]
 	})
 
-	navigator.mediaDevices.getUserMedia({video: false, audio: true})
+	const constraints = window.constraints = {
+		audio: true,
+		video: false
+	};
+
+	try {
+		window.AudioContext = window.AudioContext || window.webkitAudioContext;
+		window.audioContext = new AudioContext();
+	} catch (e) {
+		alert('Web Audio API not supported.');
+	}
+
+	const signalMeter = document.querySelector('#signal-meter meter');
+
+	navigator.mediaDevices.getUserMedia(constraints)
 		.then(stream => {
 			localStream = stream
+
 			audioTrack = stream.getAudioTracks()[0];
 			pc.addStream(stream)
 			// mute until we're ready
 			audioTrack.enabled = false;
+
+			const soundMeter = window.soundMeter = new SoundMeter(window.audioContext);
+			soundMeter.connectToSource(stream, function(e) {
+				if (e) {
+					alert(e);
+					return;
+				}
+				setInterval(() => {
+					signalMeter.value = soundMeter.instant.toFixed(2);
+				}, 50);
+			});
+
 		})
 		.catch(log)
 
