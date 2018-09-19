@@ -7,10 +7,18 @@ It uses websockets for signalling & WebRTC for audio.
 The designed use case is for live events where language translation is happening.
 A translator would act as a publisher and people wanting to hear the translation would be subscribers.
 
-## Usage
+## Building
+
+Babelcast is written in Go. It uses [pions/webrtc](https://github.com/pions/webrtc) which depends on the OpenSSL C library.
+
+Once Go and OpenSSL libs are installed, run:
 
 ```
 $ go get github.com/porjo/babelcast
+```
+
+## Usage
+
 $ babelcast \
 	-webRootPublisher $GOPATH/src/github.com/porjo/babelcast/htmlPublisher \
 	-webRootSubscriber $GOPATH/src/github.com/porjo/babelcast/htmlSubscriber \
