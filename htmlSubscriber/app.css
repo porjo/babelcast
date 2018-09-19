@@ -140,13 +140,13 @@ input, textarea {
 	background-color: #fff;
 }
 
-#reload {
+.reload {
 	font-size: 1em;
 	width: 200px;
 	height: 50px;
 }
 
-#reload .symbol {
+.reload .symbol {
 	margin: 0 5px;
 	font-size: 1.2em;
 }

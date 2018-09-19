@@ -31,7 +31,7 @@ $(function(){
 		$("#messages").prepend("<div class='message'><span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span></div>");
 	}
 
-	$("#reload").click(() => window.location.reload(false) );
+	$(".reload").click(() => window.location.reload(false) );
 
 	$(".opener").click(function() {
 		$(this).find(".opener-arrow").toggleClass("icon-down-open icon-right-open")
