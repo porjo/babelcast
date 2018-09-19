@@ -119,10 +119,8 @@ input, textarea {
 }
 
 #github-logo {
-	margin: 0 10px;
-	height: 20px;
-	opacity: 0.4;
-	filter: grayscale(100%);
+	font-size: 2em;
+	color: #555;
 }
 
 #reload {
