@@ -57,10 +57,16 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
+	clientAddress := gconn.RemoteAddr().String()
+	xFwdIP := r.Header.Get("X-Forwarded-For")
+	if xFwdIP != "" {
+		clientAddress += " (" + xFwdIP + ")"
+	}
+
 	c := NewConn(gconn)
 	defer c.Close()
 
-	c.Log("client connected, addr %s\n", c.wsConn.RemoteAddr())
+	c.Log("client connected, addr %s\n", clientAddress)
 
 	go c.LogHandler(ctx)
 	// setup ping/pong to keep connection open
