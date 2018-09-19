@@ -136,8 +136,23 @@ input, textarea {
 	color: #555;
 }
 
+@keyframes colorPulse {
+	0% {
+		color: #660000;
+	}
+	50% {
+		color: #ff0000;
+	}
+	100% {
+		color: #660000;
+	}
+}
+
 #microphone.on {
 	color: red;
+	animation-name: colorPulse;
+	animation-duration: 2s;
+	animation-iteration-count: infinite;
 }
 
 #reload {

@@ -53,16 +53,20 @@ $(function(){
 
 	$("#input-form").submit(e => {
 		e.preventDefault();
+
+		$("#output").show();
+		$("#input-form").hide();
+		var params = {};
+		params.Channel = $("#channel").val();
+		params.Password = $("#password").val();
+		var val = {Key: 'connect_publisher', Value: params};
 		if (ws.readyState === 1) {
-			$("#output").show();
-			$("#input-form").hide();
-			var params = {};
-			params.Channel = $("#channel").val();
-			params.Password = $("#password").val();
-			var val = {Key: 'connect_publisher', Value: params};
 			ws.send(JSON.stringify(val));
 		} else {
-			log("WS socket not ready");
+			debug("websocket send not ready, delaying...")
+			setTimeout(function() {
+				ws.send(JSON.stringify(val));
+			}, 500);
 		}
 	});
 
@@ -180,7 +184,14 @@ $(function(){
 			var params = {};
 			params.SessionDescription = pc.localDescription.sdp
 			var val = {Key: 'session', Value: params};
-			ws.send(JSON.stringify(val));
+			if (ws.readyState === 1) {
+				ws.send(JSON.stringify(val));
+			} else {
+				debug("websocket send not ready, delaying...")
+				setTimeout(function() {
+					ws.send(JSON.stringify(val));
+				}, 500);
+			}
 		}
 	}
 
