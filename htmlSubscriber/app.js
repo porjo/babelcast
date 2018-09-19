@@ -21,7 +21,7 @@ $(function(){
 	var log = (...m) => {
 		console.log(...m)
 		// strip html
-		var a = $("<div />").text(m).html();
+		var a = $("<div />").text(m.join(", ")).html();
 		$("#status .log").prepend("<div class='message'>" + a + '</div>');
 	}
 	var msg = m => {
@@ -38,7 +38,7 @@ $(function(){
 			debug("WS send not ready, delaying...")
 			setTimeout(function() {
 				ws.send(JSON.stringify(m));
-			}, 500);
+			}, 2000);
 		}
 	}
 
@@ -67,13 +67,10 @@ $(function(){
 		if( 'Key' in wsMsg ) {
 			switch (wsMsg.Key) {
 				case 'info':
-					log("Info: " + wsMsg.Value);
-					break;
-				case 'msg':
-					msg(wsMsg.Value);
+					debug("server info: " + wsMsg.Value);
 					break;
 				case 'error':
-					log("Error: " + wsMsg.Value);
+					log("server error: " + wsMsg.Value);
 					break;
 				case 'sd_answer':
 					startSession(wsMsg.Value);
