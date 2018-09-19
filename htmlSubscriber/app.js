@@ -31,29 +31,36 @@ $(function(){
 		$("#messages").prepend("<div class='message'><span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span></div>");
 	}
 
+	var wsSend = m => {
+		if (ws.readyState === 1) {
+			ws.send(JSON.stringify(m));
+		} else {
+			debug("WS send not ready, delaying...")
+			setTimeout(function() {
+				ws.send(JSON.stringify(m));
+			}, 500);
+		}
+	}
+
 	$(".reload").click(() => window.location.reload(false) );
 
 	$(".opener").click(function() {
 		$(this).find(".opener-arrow").toggleClass("icon-down-open icon-right-open")
 		$(this).siblings(".log").slideToggle()
 	});
+
 	$("#channels").on('click', '.channel', function() {
-		if (ws.readyState === 1) {
-			$("#output").show();
-			$("#channels").hide();
-			var params = {};
-			params.Channel = $(this).text();
-			var val = {Key: 'connect_subscriber', Value: params};
-			ws.send(JSON.stringify(val));
-		} else {
-			log("WS socket not ready");
-		}
+		$("#output").show();
+		$("#channels").hide();
+		var params = {};
+		params.Channel = $(this).text();
+		var val = {Key: 'connect_subscriber', Value: params};
+		wsSend(val);
 	});
 
-	/*
 	ws.onopen = function() {
+		debug("WS connection open")
 	};
-	*/
 
 	ws.onmessage = function (e)	{
 		var wsMsg = JSON.parse(e.data);
@@ -134,7 +141,7 @@ $(function(){
 			var params = {};
 			params.SessionDescription = pc.localDescription.sdp
 			var val = {Key: 'session', Value: params};
-			ws.send(JSON.stringify(val));
+			wsSend(val);
 		}
 	}
 
