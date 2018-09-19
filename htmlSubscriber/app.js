@@ -22,7 +22,7 @@ $(function(){
 		console.log(...m)
 		// strip html
 		var a = $("<div />").text(m).html();
-		$("#status").prepend("<div class='message'>" + a + '</div>');
+		$("#status .log").prepend("<div class='message'>" + a + '</div>');
 	}
 	var msg = m => {
 		var d = new Date(Date.now()).toLocaleString();
@@ -33,6 +33,10 @@ $(function(){
 
 	$("#reload").click(() => window.location.reload(false) );
 
+	$(".opener").click(function() {
+		$(this).find(".opener-arrow").toggleClass("icon-down-open icon-right-open")
+		$(this).siblings(".log").slideToggle()
+	});
 	$("#channels").on('click', '.channel', function() {
 		if (ws.readyState === 1) {
 			$("#output").show();
@@ -105,22 +109,21 @@ $(function(){
 	})
 
 	pc.oniceconnectionstatechange = e => {
+		debug("ICE state:", pc.iceConnectionState)
 		switch (pc.iceConnectionState) {
 			case "new":
 			case "checking":
-				log("ICE checking")
-				break
-			case "connected":
-				log("ICE connected")
-				$("#spinner").hide()
-				break
 			case "failed":
 			case "disconnected":
 			case "closed":
-				log("ICE stopped")
+			case "completed":
+				break
+			case "connected":
+				$("#spinner").hide()
+				$("#connect-button").show()
 				break
 			default:
-				console.log("ice state unknown", e)
+				debug("ice state unknown", e)
 				break
 		}
 	}

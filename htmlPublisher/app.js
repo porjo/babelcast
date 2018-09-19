@@ -25,7 +25,7 @@ $(function(){
 		console.log(...m)
 		// strip html
 		var a = $("<div />").text(m).html();
-		$("#status").prepend("<div class='message'>" + a + '</div>');
+		$("#status .log").prepend("<div class='message'>" + a + '</div>');
 	}
 	var msg = m => {
 		var d = new Date(Date.now()).toLocaleString();
@@ -36,15 +36,19 @@ $(function(){
 
 	$("#reload").click(() => window.location.reload(false) );
 
+	$(".opener").click(function() {
+		$(this).find(".opener-arrow").toggleClass("icon-down-open icon-right-open")
+		$(this).siblings(".log").slideToggle()
+	});
+
 	$("#microphone").click(function() {
 		toggleMic()
 	});
 
-	var toggleMic = function($el) {
+	var toggleMic = function() {
 		$el = $("#microphone")
 		$el.toggleClass("icon-mute icon-mic on")
 		audioTrack.enabled = $el.hasClass("icon-mic")
-
 	}
 
 	$("#input-form").submit(e => {
@@ -120,7 +124,7 @@ $(function(){
 		alert('Web Audio API not supported.');
 	}
 
-	const signalMeter = document.querySelector('#signal-meter meter');
+	const signalMeter = document.querySelector('#microphone-meter meter');
 
 	navigator.mediaDevices.getUserMedia(constraints)
 		.then(stream => {

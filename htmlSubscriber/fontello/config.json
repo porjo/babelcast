@@ -47,6 +47,12 @@
       "css": "up-open",
       "code": 59395,
       "src": "fontawesome"
+    },
+    {
+      "uid": "399ef63b1e23ab1b761dfbb5591fa4da",
+      "css": "right-open",
+      "code": 59396,
+      "src": "fontawesome"
     }
   ]
 }

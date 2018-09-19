@@ -39,9 +39,6 @@ input, textarea {
 	max-width: 800px;
 	margin: 0 auto;
 	text-align: center;
-}
-
-.main-container {
 	padding: 10px;
 	border-radius: 5px;
 }
@@ -53,37 +50,46 @@ input, textarea {
 	padding: 10px;
 }
 
-#url {
-	height: 50px;
-}
-
 #output {
 	margin: 10px 0;
 }
 
-#advanced-toggle {
-	color: #999;
-	font-size: 0.8em;
-	text-align: center;
+.opener {
+	position: relative;
 	cursor: pointer;
 }
+
+.opener-arrow {
+	position: absolute;
+	top: 0;
+	right: 0;
+}
+
 .hidden {
 	display: none;
 }
 
-#advanced-form,
-#messages, #status {
+.log {
 	border: 1px #bbb dotted;
 	border-radius: 5px;
 	padding: 10px;
 	text-align: left;
 	background-color: #fff;
+	margin: 10px 0;
 }
 
-#messages, #status {
+#status {
+	border: 1px solid #ddd;
+	border-radius: 5px;
+	text-align: left;
 	max-height: 150px;
 	overflow: auto;
-	margin: 10px 0 20px 0;
+	margin: 10px 0;
+	padding: 10px;
+}
+
+#status h3 {
+	margin: 0;
 }
 
 .message {
@@ -91,17 +97,13 @@ input, textarea {
 	padding: 5px 0;
 }
 
-#messages .sender, #messages .time {
-	padding-right: 10px;
-	width: 200px;
-}
-
 .title {
 	font-family: 'Pacifico', cursive;
-	margin: 10px;
+	margin: 10px 0;
 	padding-bottom: 20px;
 	border-bottom: 1px #ddd solid;
 }
+
 .logo {
 	font-size: 2em;
 	margin: 0 10px;
@@ -122,6 +124,11 @@ input, textarea {
 	font-size: 2em;
 	color: #555;
 }
+
+#microphone-meter {
+	margin: 20px 0;
+}
+
 
 #microphone {
 	font-size: 2em;
