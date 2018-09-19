@@ -37,10 +37,11 @@ $(function(){
 	$("#reload").click(() => window.location.reload(false) );
 
 	$("#microphone").click(function() {
-		toggleMic($(this))
+		toggleMic()
 	});
 
-	toggleMic = function($el) {
+	var toggleMic = function($el) {
+		$el = $("#microphone")
 		$el.toggleClass("icon-mute icon-mic on")
 		audioTrack.enabled = $el.hasClass("icon-mic")
 
@@ -56,7 +57,6 @@ $(function(){
 			params.Password = $("#password").val();
 			var val = {Key: 'connect_publisher', Value: params};
 			ws.send(JSON.stringify(val));
-			toggleMic()
 		} else {
 			log("WS socket not ready");
 		}
@@ -131,17 +131,22 @@ $(function(){
 			// mute until we're ready
 			audioTrack.enabled = false;
 
-			const soundMeter = window.soundMeter = new SoundMeter(window.audioContext);
+			const soundMeter = new SoundMeter(window.audioContext);
 			soundMeter.connectToSource(stream, function(e) {
 				if (e) {
 					alert(e);
 					return;
 				}
+
+				// make the meter value relative to a sliding max
+				var max = 0.0
 				setInterval(() => {
-					signalMeter.value = soundMeter.instant.toFixed(2);
+					var val = soundMeter.instant.toFixed(2)
+					if( val > max ) { max = val }
+					if( max > 0) { val = (val / max) }
+					signalMeter.value = val
 				}, 50);
 			});
-
 		})
 		.catch(log)
 
