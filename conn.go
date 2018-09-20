@@ -198,6 +198,10 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 			default:
 			}
 			if data, err = c.spSock.Recv(); err != nil {
+				if err == mangos.ErrClosed {
+					c.Log("sub sock recv err: %s\n", err)
+					return
+				}
 				c.errChan <- fmt.Errorf("sub sock recv err %s\n", err)
 				continue
 			}
@@ -280,6 +284,10 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 				binary.Write(buf, binary.LittleEndian, sample.Samples)
 				buf.Write(sample.Data)
 				if err = c.spSock.Send(buf.Bytes()); err != nil {
+					if err == mangos.ErrClosed {
+						c.Log("sub sock send err: %s\n", err)
+						return
+					}
 					c.errChan <- fmt.Errorf("pub send failed: %s", err)
 				}
 				c.Unlock()
