@@ -187,13 +187,13 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 
 	go func() {
 		defer c.Log("sub read goroutine quitting...\n")
+		defer c.Close()
 
 		var data []byte
 		for {
 
 			select {
 			case <-ctx.Done():
-				c.Close()
 				return
 			default:
 			}
@@ -260,6 +260,7 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 		var err error
 		sb := samplebuilder.New(maxLate)
 		defer c.Log("rtcTrackhandler goroutine quitting...\n")
+		defer c.Close()
 		for {
 			select {
 			case <-c.trackQuitChan:

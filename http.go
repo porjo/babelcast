@@ -55,8 +55,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, ctxCancel := context.WithCancel(context.Background())
-
 	clientAddress := gconn.RemoteAddr().String()
 	xFwdIP := r.Header.Get("X-Forwarded-For")
 	if xFwdIP != "" {
@@ -65,6 +63,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	c := NewConn(gconn)
 	defer c.Close()
+
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
 
 	c.Log("client connected, addr %s\n", clientAddress)
 
@@ -157,6 +158,5 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// this will trigger all goroutines to quit
-	ctxCancel()
 	c.Log("end handler\n")
 }
