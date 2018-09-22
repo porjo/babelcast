@@ -19,6 +19,7 @@ $ go get github.com/porjo/babelcast
 
 ## Usage
 
+```
 $ babelcast \
 	-webRootPublisher $GOPATH/src/github.com/porjo/babelcast/htmlPublisher \
 	-webRootSubscriber $GOPATH/src/github.com/porjo/babelcast/htmlSubscriber \
