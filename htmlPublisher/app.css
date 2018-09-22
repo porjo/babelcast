@@ -54,47 +54,19 @@ input, textarea {
 	margin: 10px 0;
 }
 
-.opener {
-	position: relative;
-	cursor: pointer;
-}
-
-.opener-arrow {
-	position: absolute;
-	top: 0;
-	right: 0;
-}
-
 .hidden {
 	display: none;
 }
 
-.log {
-	border: 1px #bbb dotted;
-	border-radius: 5px;
-	padding: 10px;
+#error {
+	border: 2px solid #8c4d4d;
+	background-color: #fff1f1;
+	min-height: 50px;
+	border-radius: 2px;
+	padding: 20px;
+	font-size: 1.2em;
+	font-weight: bold;
 	text-align: left;
-	background-color: #fff;
-	margin: 10px 0;
-}
-
-#status {
-	border: 1px solid #ddd;
-	border-radius: 5px;
-	text-align: left;
-	max-height: 150px;
-	overflow: auto;
-	margin: 10px 0;
-	padding: 10px;
-}
-
-#status h3 {
-	margin: 0;
-}
-
-.message {
-	border-bottom: 1px #eee solid;
-	padding: 5px 0;
 }
 
 .title {
@@ -170,6 +142,7 @@ input, textarea {
 
 /* This button was generated using CSSButtonGenerator.com */
 .button {
+	margin: 10px;
 	box-shadow: inset 0px 1px 0px 0px #ffffff;
 	background-color: #f9f9f9;
 	border: 1px solid #bdbdbd;

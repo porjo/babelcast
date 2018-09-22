@@ -52,7 +52,7 @@ func NewPC(offerSd string, onStateChange func(connectionState ice.ConnectionStat
 
 	pc.OnICEConnectionStateChange = onStateChange
 
-	pc.Ontrack = onTrack
+	pc.OnTrack = onTrack
 	// Create a audio track
 	opusTrack, err = pc.NewRTCTrack(webrtc.DefaultPayloadTypeOpus, "audio", "babelcast")
 	if err != nil {

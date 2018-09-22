@@ -15,14 +15,13 @@ var pc;
 
 $(function(){
 
-	var debug = (...m) => {
+	var debug = log = (...m) => {
 		console.log(...m)
 	}
-	var log = (...m) => {
+	var error = (...m) => {
 		console.log(...m)
-		// strip html
-		var a = $("<div />").text(m.join(", ")).html();
-		$("#status .log").prepend("<div class='message'>" + a + '</div>');
+		$("#error").text(m.join(", "))
+		$("#error").show()
 	}
 	var msg = m => {
 		var d = new Date(Date.now()).toLocaleString();
@@ -43,11 +42,6 @@ $(function(){
 	}
 
 	$(".reload").click(() => window.location.reload(false) );
-
-	$(".opener").click(function() {
-		$(this).find(".opener-arrow").toggleClass("icon-down-open icon-right-open")
-		$(this).siblings(".log").slideToggle()
-	});
 
 	$("#channels").on('click', '.channel', function() {
 		$("#output").show();
@@ -70,7 +64,9 @@ $(function(){
 					debug("server info: " + wsMsg.Value);
 					break;
 				case 'error':
-					log("server error: " + wsMsg.Value);
+					error("server error", wsMsg.Value);
+					$("#output").hide();
+					$("#input-form").hide();
 					break;
 				case 'sd_answer':
 					startSession(wsMsg.Value);
