@@ -31,6 +31,7 @@ import (
 	"github.com/pions/webrtc"
 	"github.com/pions/webrtc/pkg/ice"
 	"github.com/pions/webrtc/pkg/media/samplebuilder"
+	"github.com/pions/webrtc/pkg/rtp/codecs"
 	"nanomsg.org/go-mangos"
 	"nanomsg.org/go-mangos/protocol/sub"
 	"nanomsg.org/go-mangos/transport/inproc"
@@ -258,7 +259,7 @@ func (c *Conn) writeMsg(val interface{}) error {
 func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 	go func() {
 		var err error
-		sb := samplebuilder.New(maxLate)
+		sb := samplebuilder.New(maxLate, &codecs.OpusPacket{})
 		defer c.Log("rtcTrackhandler goroutine quitting...\n")
 		defer c.Close()
 		for {
