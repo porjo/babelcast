@@ -9,13 +9,15 @@ A translator would act as a publisher and people wanting to hear the translation
 
 ## Building
 
-Babelcast is written in Go. It uses [pions/webrtc](https://github.com/pions/webrtc) which depends on the OpenSSL C library.
+Babelcast is written in Go. It uses [pions/webrtc](https://github.com/pions/webrtc) which depends on the OpenSSL C library. On Redhat Linux, these can be installed with `[yum|dnf] install golang openssl-devel`.
 
-Once Go and OpenSSL libs are installed, run:
+Once Go and OpenSSL libs are installed, from your home directory run:
 
 ```
 $ go get github.com/porjo/babelcast
 ```
+
+You will find the compiled binary under `~/go/bin` and the html+css under `~/go/src/github.com/porjo/babelcast/*`
 
 ## Usage
 
@@ -26,8 +28,8 @@ $ babelcast \
 	-port 8080
 ```
 
-- Publishers should point their web browser to http://localhost:8080/static/publisher/
-- Subscribers should point their web browser to http://localhost:8080/static/subscriber/
+- Publishers should point their web browser to http://&lt;server-ip&gt;:8080/static/publisher/
+- Subscribers should point their web browser to http://&lt;server-ip&gt;:8080/static/subscriber/
 
 If the `PUBLISHER_PASSWORD` environment variable is set, then publishers will be required to enter the
 password before they can connect.
