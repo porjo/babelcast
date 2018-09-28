@@ -1,4 +1,17 @@
 
+// Check for WebRTC support
+var isWebRTCSupported = navigator.getUserMedia ||
+        navigator.webkitGetUserMedia ||
+        navigator.mozGetUserMedia ||
+        navigator.msGetUserMedia ||
+        window.RTCPeerConnection;
+
+if(!isWebRTCSupported) {
+	document.getElementById("not-supported").style.display = 'block';
+	document.getElementById("supported").style.display = 'none';
+	throw new Error("WebRTC not supported");
+}
+
 var loc = window.location, ws_uri;
 if (loc.protocol === "https:") {
 	ws_uri = "wss:";

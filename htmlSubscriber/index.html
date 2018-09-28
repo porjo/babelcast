@@ -14,38 +14,43 @@
 	<body>
 		<div class="container">
 			<div class='title'><span class='logo'>Babelcast</span><span class='subtitle'>Subscriber</span></div>
-			<div id="channels" class='hidden'>
-				<h3>Channels</h3>
-				<p>Click on a channel name below to connect.</p>
-				<p id="nochannels" class='hidden'><i>No Channels found</i></p>
-				<ul></ul>
-				<button class='reload button'><span class='icon-arrows-cw'></span>Reload</button>
+			<div id="not-supported" class="container hidden">
+				<p>Unfortunately your web browser doesn't appear to support WebRTC which is required for this application. Please try another web browser.</p>
 			</div>
-			<div id='spinner' class='hidden'>
-				<p>Negotiating connection...</p>
-				<div class="sk-fading-circle">
-					<div class="sk-circle1 sk-circle"></div>
-					<div class="sk-circle2 sk-circle"></div>
-					<div class="sk-circle3 sk-circle"></div>
-					<div class="sk-circle4 sk-circle"></div>
-					<div class="sk-circle5 sk-circle"></div>
-					<div class="sk-circle6 sk-circle"></div>
-					<div class="sk-circle7 sk-circle"></div>
-					<div class="sk-circle8 sk-circle"></div>
-					<div class="sk-circle9 sk-circle"></div>
-					<div class="sk-circle10 sk-circle"></div>
-					<div class="sk-circle11 sk-circle"></div>
-					<div class="sk-circle12 sk-circle"></div>
+			<div id="supported">
+				<div id="channels" class='hidden'>
+					<h3>Channels</h3>
+					<p>Click on a channel name below to connect.</p>
+					<p id="nochannels" class='hidden'><i>No Channels found</i></p>
+					<ul></ul>
+					<button class='reload button'><span class='icon-arrows-cw'></span>Reload</button>
 				</div>
-			</div>
+				<div id='spinner' class='hidden'>
+					<p>Negotiating connection...</p>
+					<div class="sk-fading-circle">
+						<div class="sk-circle1 sk-circle"></div>
+						<div class="sk-circle2 sk-circle"></div>
+						<div class="sk-circle3 sk-circle"></div>
+						<div class="sk-circle4 sk-circle"></div>
+						<div class="sk-circle5 sk-circle"></div>
+						<div class="sk-circle6 sk-circle"></div>
+						<div class="sk-circle7 sk-circle"></div>
+						<div class="sk-circle8 sk-circle"></div>
+						<div class="sk-circle9 sk-circle"></div>
+						<div class="sk-circle10 sk-circle"></div>
+						<div class="sk-circle11 sk-circle"></div>
+						<div class="sk-circle12 sk-circle"></div>
+					</div>
+				</div>
 
-			<div id='output' class='hidden'>
-				<div id='media'></div>
-				<button class='reload button'><span class='icon-arrows-cw'></span>Reload</button>
-			</div>
-			<div id='error' class='hidden'></div>
-			<div id='footer'>
-				<a href='https://github.com/porjo/babelcast'><span class='icon-github-circled' id='github-logo'></span>Github Project</a>
+				<div id='output' class='hidden'>
+					<div id='media'></div>
+					<button class='reload button'><span class='icon-arrows-cw'></span>Reload</button>
+				</div>
+				<div id='error' class='hidden'></div>
+				<div id='footer'>
+					<a href='https://github.com/porjo/babelcast'><span class='icon-github-circled' id='github-logo'></span>Github Project</a>
+				</div>
 			</div>
 		</div>
 
