@@ -24,7 +24,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gorilla/mux"
 	"nanomsg.org/go-mangos"
 	"nanomsg.org/go-mangos/protocol/pub"
 	"nanomsg.org/go-mangos/transport/inproc"
@@ -52,16 +51,14 @@ func main() {
 		log.Printf("Publisher password set\n")
 	}
 
-	r := mux.NewRouter()
+	http.Handle("/static/publisher/", http.StripPrefix("/static/publisher/", http.FileServer(http.Dir(http.Dir(*webRootPublisher)))))
+	http.Handle("/static/subscriber/", http.StripPrefix("/static/subscriber/", http.FileServer(http.Dir(http.Dir(*webRootSubscriber)))))
 
-	r.PathPrefix("/static/publisher/").Handler(http.StripPrefix("/static/publisher/", http.FileServer(http.Dir(*webRootPublisher))))
-	r.PathPrefix("/static/subscriber/").Handler(http.StripPrefix("/static/subscriber/", http.FileServer(http.Dir(*webRootSubscriber))))
-	r.HandleFunc("/ws", wsHandler)
+	http.HandleFunc("/ws", wsHandler)
 
 	log.Printf("Listening on port :%d\n", *port)
 
 	srv := &http.Server{
-		Handler:      r,
 		Addr:         fmt.Sprintf(":%d", *port),
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
