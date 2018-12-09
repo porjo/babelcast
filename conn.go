@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pions/webrtc"
 	"github.com/pions/webrtc/pkg/ice"
+	"github.com/pions/webrtc/pkg/media"
 	"github.com/pions/webrtc/pkg/media/samplebuilder"
 	"github.com/pions/webrtc/pkg/rtp/codecs"
 	"nanomsg.org/go-mangos"
@@ -208,7 +209,7 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 			}
 
 			// discard topic data[:4]
-			sample := webrtc.RTCSample{}
+			sample := media.RTCSample{}
 			sample.Samples = binary.LittleEndian.Uint32(data[4:8])
 			sample.Data = data[8:]
 
