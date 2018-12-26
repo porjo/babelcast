@@ -21,9 +21,8 @@
 				<div id="channels" class='hidden'>
 					<h3>Channels</h3>
 					<p>Click on a channel name below to connect.</p>
-					<p id="nochannels" class='hidden'><i>No Channels found</i></p>
+					<p id="nochannels"><i>No Channels found</i></p>
 					<ul></ul>
-					<button id='reload' class='button'><span class='icon-arrows-cw'></span>Reload</button>
 				</div>
 				<div id='spinner' class='hidden'>
 					<p>Negotiating connection...</p>
@@ -45,8 +44,8 @@
 
 				<div id='output' class='hidden'>
 					<div id='media'></div>
-					<button id='reload' class='button'><span class='icon-arrows-cw'></span>Reload</button>
 				</div>
+				<button id='reload' class='button hidden'><span class='icon-arrows-cw'></span>Reload</button>
 				<div id='error' class='hidden'></div>
 				<div id='footer'>
 					<a href='https://github.com/porjo/babelcast'><span class='icon-github-circled' id='github-logo'></span>Github Project</a>
@@ -55,7 +54,6 @@
 		</div>
 
 
-		<script src="js/jquery_3.2.1.min.js"></script>
 		<script src="js/common.js"></script>
 		<script src="js/subscriber.js"></script>
 	</body>

@@ -1,57 +1,58 @@
 
-$(function(){
-
-	$("#reload").click(() => window.location.reload(false) );
-
-	$("#channels").on('click', '.channel', function() {
-		$("#output").show();
-		$("#channels").hide();
-		var params = {};
-		params.Channel = $(this).text();
-		var val = {Key: 'connect_subscriber', Value: params};
-		wsSend(val);
-	});
-
-	ws.onmessage = function (e)	{
-		var wsMsg = JSON.parse(e.data);
-		if( 'Key' in wsMsg ) {
-			switch (wsMsg.Key) {
-				case 'info':
-					debug("server info", wsMsg.Value);
-					break;
-				case 'error':
-					error("server error", wsMsg.Value);
-					$("#output").hide();
-					$("#input-form").hide();
-					break;
-				case 'sd_answer':
-					startSession(wsMsg.Value);
-					break;
-				case 'channels':
-					$("#channels ul").html();
-					$("#nochannels").hide();
-					var channels = wsMsg.Value
-					if(channels.length == 0) {
-						$("#nochannels").show();
-					} else {
-						channels.forEach((e) => {
-							var $c = $("<li/>").addClass('channel').text(e)
-							$("#channels ul").append($c);
-						});
-					}
-					$("#channels").show();
-					break;
-			}
-		}
-	};
-
-	ws.onclose = function()	{
-		log("WS connection closed");
-		pc.close()
-		$("#media").hide()
-	};
-
+document.getElementById('reload').addEventListener('click', function() {
+	window.location.reload(false);
 });
+
+function channelClick(e) {
+	document.getElementById('output').classList.remove('hidden');
+	document.getElementById('channels').classList.add('hidden');
+	var params = {};
+	params.Channel = e.target.innerText;
+	var val = {Key: 'connect_subscriber', Value: params};
+	wsSend(val);
+};
+
+ws.onmessage = function (e)	{
+	var wsMsg = JSON.parse(e.data);
+	if( 'Key' in wsMsg ) {
+		switch (wsMsg.Key) {
+			case 'info':
+				debug("server info", wsMsg.Value);
+				break;
+			case 'error':
+				error("server error", wsMsg.Value);
+				document.getElementById('output').classList.add('hidden');
+				document.getElementById('channels').classList.add('hidden');
+				break;
+			case 'sd_answer':
+				startSession(wsMsg.Value);
+				break;
+			case 'channels':
+				var channelsEle = document.querySelector('#channels ul');
+				channelsEle.innerHTML = '';
+				var channels = wsMsg.Value
+				if(channels.length > 0) {
+					document.getElementById('nochannels').classList.add('hidden');
+					channels.forEach((e) => {
+						var c = document.createElement("li");
+						c.classList.add('channel');
+						c.innerText = e;
+						c.addEventListener("click", channelClick);
+						channelsEle.appendChild(c);
+					});
+				}
+				document.getElementById('channels').classList.remove('hidden');
+				document.getElementById('reload').classList.remove('hidden');
+				break;
+		}
+	}
+};
+
+ws.onclose = function()	{
+	debug("WS connection closed");
+	pc.close()
+	document.getElementById('media').classList.add('hidden');
+};
 
 //
 // -------- WebRTC ------------
@@ -63,7 +64,7 @@ pc.ontrack = function (event) {
 	el.autoplay = true
 	el.controls = true
 
-	$("#media").append(el);
+	document.getElementById('media').appendChild(el);
 }
 
 // FIXME:
@@ -79,5 +80,5 @@ pc.ontrack = function (event) {
 pc.createOffer({
 	offerToReceiveVideo: false, 
 	offerToReceiveAudio: true
-}).then(d => pc.setLocalDescription(d)).catch(log)
+}).then(d => pc.setLocalDescription(d)).catch(debug)
 // ----------------------------------------------------------------

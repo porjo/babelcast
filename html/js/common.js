@@ -1,3 +1,4 @@
+'use strict';
 
 // Check for WebRTC support
 var isWebRTCSupported = navigator.getUserMedia ||
@@ -26,24 +27,26 @@ var ws = new WebSocket(ws_uri);
 
 var error, msg;
 
-var debug = log = (...m) => {
+var debug = (...m) => {
 	console.log(...m)
 }
 
 error = (...m) => {
 	console.log(...m)
 	var errorEle = document.getElementById('error');
-	errorEle.innerText(m.join(", "));
+	errorEle.innerText = m.join(", ");
 	errorEle.classList.remove('hidden');
 }
 msg = m => {
 	var d = new Date(Date.now()).toLocaleString();
 	// strip html
-	var a = document.createElement("div").innerText(m.Message).innerText();
+	var div = document.createElement("div")
+	div.innerHtml = m.Message;
+	var a = div.innerText;
 	var msgEle = document.getElementById('messages');
 	msgEle.classList.add('message');
 	var insEle = document.createElement("div");
-	insEle.innerHTML("<span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span>");
+	insEle.innerHTML = "<span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span>";
 	msgEle.insertBefore(insEle, msgEle.firstChild);
 }
 
@@ -104,7 +107,7 @@ pc.onicecandidate = event => {
 	}
 }
 
-startSession = sd => {
+var startSession = sd => {
 	try {
 		pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}))
 	} catch (e) {

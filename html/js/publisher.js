@@ -2,60 +2,61 @@
 var localStream;
 var audioTrack;
 
-$(function(){
-
-	$("#reload").click(() => window.location.reload(false) );
-
-	$("#microphone").click(function() {
-		toggleMic()
-	});
-
-	var toggleMic = function() {
-		$el = $("#microphone")
-		$el.toggleClass("icon-mute icon-mic on")
-		audioTrack.enabled = $el.hasClass("icon-mic")
-	}
-
-	$("#input-form").submit(e => {
-		e.preventDefault();
-
-		$("#output").show();
-		$("#input-form").hide();
-		var params = {};
-		params.Channel = $("#channel").val();
-		params.Password = $("#password").val();
-		var val = {Key: 'connect_publisher', Value: params};
-		wsSend(val)
-	});
-
-	ws.onmessage = function (e)	{
-		var wsMsg = JSON.parse(e.data);
-		if( 'Key' in wsMsg ) {
-			switch (wsMsg.Key) {
-				case 'info':
-					debug("server info", wsMsg.Value);
-					break;
-				case 'error':
-					error("server error", wsMsg.Value);
-					$("#output").hide();
-					$("#input-form").hide();
-					break;
-				case 'sd_answer':
-					startSession(wsMsg.Value);
-					break;
-			}
-		}
-	};
-
-	ws.onclose = function()	{
-		log("WS connection closed");
-		if (audioTrack) {
-			audioTrack.stop()
-		}
-		pc.close()
-	};
-
+document.getElementById('reload').addEventListener('click', function() {
+	window.location.reload(false);
 });
+
+document.getElementById('microphone').addEventListener('click', function() {
+	toggleMic()
+});
+
+var toggleMic = function() {
+	var micEle = document.getElementById('microphone');
+	micEle.classList.toggle('icon-mute');
+	micEle.classList.toggle('icon-mic');
+	micEle.classList.toggle('on');
+	audioTrack.enabled = micEle.classList.contains('icon-mic');
+}
+
+document.getElementById('input-form').addEventListener('submit', function(e) {
+	e.preventDefault();
+
+	document.getElementById('output').classList.remove('hidden');
+	document.getElementById('input-form').classList.add('hidden');
+	var params = {};
+
+	params.Channel = document.getElementById('channel').value;
+	params.Password = document.getElementById('password').value;
+	var val = {Key: 'connect_publisher', Value: params};
+	wsSend(val)
+});
+
+ws.onmessage = function (e)	{
+	var wsMsg = JSON.parse(e.data);
+	if( 'Key' in wsMsg ) {
+		switch (wsMsg.Key) {
+			case 'info':
+				debug("server info", wsMsg.Value);
+				break;
+			case 'error':
+				error("server error", wsMsg.Value);
+				document.getElementById('output').classList.add('hidden');
+				document.getElementById('input-form').classList.add('hidden');
+				break;
+			case 'sd_answer':
+				startSession(wsMsg.Value);
+				break;
+		}
+	}
+};
+
+ws.onclose = function()	{
+	debug("WS connection closed");
+	if (audioTrack) {
+		audioTrack.stop()
+	}
+	pc.close()
+};
 
 //
 // -------- WebRTC ------------
@@ -101,8 +102,8 @@ navigator.mediaDevices.getUserMedia(constraints)
 			}, 50);
 		});
 	})
-	.catch(log)
+	.catch(debug)
 
 pc.onnegotiationneeded = e =>
-	pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
+	pc.createOffer().then(d => pc.setLocalDescription(d)).catch(debug)
 
