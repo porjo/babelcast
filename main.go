@@ -51,6 +51,9 @@ func main() {
 		log.Printf("Publisher password set\n")
 	}
 
+	if *webRootPublisher == *webRootSubscriber {
+		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(http.Dir(*webRootPublisher)))))
+	}
 	http.Handle("/static/publisher/", http.StripPrefix("/static/publisher/", http.FileServer(http.Dir(http.Dir(*webRootPublisher)))))
 	http.Handle("/static/subscriber/", http.StripPrefix("/static/subscriber/", http.FileServer(http.Dir(http.Dir(*webRootSubscriber)))))
 
