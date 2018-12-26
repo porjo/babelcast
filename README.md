@@ -22,13 +22,12 @@ You will find the compiled binary under `~/go/bin` and the html+css under `~/go/
 
 ```
 $ babelcast \
-	-webRootPublisher $GOPATH/src/github.com/porjo/babelcast/htmlPublisher \
-	-webRootSubscriber $GOPATH/src/github.com/porjo/babelcast/htmlSubscriber \
+	-webRootPublisher $GOPATH/src/github.com/porjo/babelcast/html \
+	-webRootSubscriber $GOPATH/src/github.com/porjo/babelcast/html \
 	-port 8080
 ```
 
-- Publishers should point their web browser to `http://<server-ip>:8080/static/publisher/`
-- Subscribers should point their web browser to `http://<server-ip>:8080/static/subscriber/`
+Users should point their web browser to `http://<server-ip>:8080/static/`
 
 If the `PUBLISHER_PASSWORD` environment variable is set, then publishers will be required to enter the
 password before they can connect.

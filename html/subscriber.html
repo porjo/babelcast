@@ -6,7 +6,7 @@
 
 		<title>Babelcast Subscriber</title>
 
-		<link href="app.css" rel="stylesheet">
+		<link href="css/common.css" rel="stylesheet">
 		<link href="fontello/css/fontello.css" rel="stylesheet">
 		<link href="https://fonts.googleapis.com/css?family=Pacifico" rel="stylesheet">
 
@@ -23,7 +23,7 @@
 					<p>Click on a channel name below to connect.</p>
 					<p id="nochannels" class='hidden'><i>No Channels found</i></p>
 					<ul></ul>
-					<button class='reload button'><span class='icon-arrows-cw'></span>Reload</button>
+					<button id='reload' class='button'><span class='icon-arrows-cw'></span>Reload</button>
 				</div>
 				<div id='spinner' class='hidden'>
 					<p>Negotiating connection...</p>
@@ -45,7 +45,7 @@
 
 				<div id='output' class='hidden'>
 					<div id='media'></div>
-					<button class='reload button'><span class='icon-arrows-cw'></span>Reload</button>
+					<button id='reload' class='button'><span class='icon-arrows-cw'></span>Reload</button>
 				</div>
 				<div id='error' class='hidden'></div>
 				<div id='footer'>
@@ -55,7 +55,8 @@
 		</div>
 
 
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
-		<script src="app.js"></script>
+		<script src="js/jquery_3.2.1.min.js"></script>
+		<script src="js/common.js"></script>
+		<script src="js/subscriber.js"></script>
 	</body>
 </html>

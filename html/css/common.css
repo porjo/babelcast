@@ -1,3 +1,4 @@
+
 html {
 	margin: 0;
 	padding: 0;
@@ -8,7 +9,7 @@ body {
 	font-family: sans-serif;
 	padding: 5px;
 	margin: 0;
-	background-image: url('img/whitenoise.png');
+	background-image: url('../img/whitenoise.png');
 	background-repeat: repeat;
 }
 
@@ -95,6 +96,21 @@ input, textarea {
 #github-logo {
 	font-size: 2em;
 	color: #555;
+}
+
+#channels ul {
+	padding: 0;
+}
+
+.channel {
+	padding: 10px;
+	border: 1px solid #bbb;
+	border-radius: 5px;
+	max-width: 400px;
+	cursor: pointer;
+	list-style-type: none;
+	margin: 5px auto;
+	background-color: #fff;
 }
 
 #microphone-meter {

@@ -37,8 +37,8 @@ var publisherPassword = ""
 var reg *Registry
 
 func main() {
-	webRootPublisher := flag.String("webRootPublisher", "htmlPublisher", "web root directory for publisher")
-	webRootSubscriber := flag.String("webRootSubscriber", "htmlSubscriber", "web root directory for subscribers")
+	webRootPublisher := flag.String("webRootPublisher", "html", "web root directory for publisher")
+	webRootSubscriber := flag.String("webRootSubscriber", "html", "web root directory for subscribers")
 	port := flag.Int("port", 8080, "listen on this port")
 	flag.Parse()
 
