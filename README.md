@@ -1,6 +1,6 @@
 # Babelcast
 
-A server which allows audio publishers to broadcast to subscribers on a channel.
+A server which allows audio publishers to broadcast to subscribers on a channel, using nothing more than a modern web browser.
 
 It uses websockets for signalling & WebRTC for audio.
 
@@ -9,13 +9,12 @@ A translator would act as a publisher and people wanting to hear the translation
 
 ## Building
 
-Babelcast is written in Go. It uses [pions/webrtc](https://github.com/pions/webrtc) which depends on the OpenSSL C library. On Redhat Linux, these can be installed with `$ yum|dnf install golang openssl-devel`.
-
-Once Go and OpenSSL libs are installed, from your home directory run:
-
-```
-$ go get github.com/porjo/babelcast
-```
+This project uses ['dep'](https://github.com/golang/dep) for [vendoring](https://blog.gopheracademy.com/advent-2015/vendor-folder/).
+- Install Go e.g. `yum install golang` or `apt-get install golang`
+- Define your Go Path e.g. `export GOPATH=$HOME/go`
+- Fetch the project `go get -d github.com/porjo/babelcast`
+- run `dep ensure` in the project root
+- run `go build`
 
 You will find the compiled binary under `~/go/bin` and the html+css under `~/go/src/github.com/porjo/babelcast/*`
 
