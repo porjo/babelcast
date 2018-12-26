@@ -26,6 +26,8 @@
   name = "github.com/pions/webrtc"
   packages = [
     ".",
+    "internal/datachannel",
+    "internal/mux",
     "internal/network",
     "internal/sctp",
     "internal/sdp",
@@ -40,7 +42,8 @@
     "pkg/rtp",
     "pkg/rtp/codecs"
   ]
-  revision = "04d691ef96202343055d2eacffebeebaddc7f07e"
+  revision = "7d19be0bca79fa3660a90a846f9d5ec3a53e12b7"
+  version = "v1.2.0"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -79,6 +82,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5bdf2082bfdbcf1878ea1deac5a4181a34d072b3ff195e87670a19a320fa805b"
+  inputs-digest = "5bd7c00287715324adb21c1e90fa2d603d1015f4de74f65e2c8c902fb615b918"
   solver-name = "gps-cdcl"
   solver-version = 1
