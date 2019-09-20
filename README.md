@@ -9,22 +9,20 @@ A translator would act as a publisher and people wanting to hear the translation
 
 ## Building
 
-This project uses ['dep'](https://github.com/golang/dep) for [vendoring](https://blog.gopheracademy.com/advent-2015/vendor-folder/).
-- Install Go e.g. `yum install golang` or `apt-get install golang`
-- Define your Go Path e.g. `export GOPATH=$HOME/go`
-- Fetch the project `go get -d github.com/porjo/babelcast`
-- run `dep ensure` in the project root
-- run `go build`
+Requires Go >= 1.11
 
-You will find the compiled binary under `~/go/bin` and the html+css under `~/go/src/github.com/porjo/babelcast/*`
+Fetch the project `go get github.com/porjo/babelcast`
 
 ## Usage
 
 ```
-$ babelcast \
-	-webRootPublisher $GOPATH/src/github.com/porjo/babelcast/html \
-	-webRootSubscriber $GOPATH/src/github.com/porjo/babelcast/html \
-	-port 8080
+Usage of ./babelcast:
+  -port int
+    	listen on this port (default 8080)
+  -webRootPublisher string
+    	web root directory for publisher (default "html")
+  -webRootSubscriber string
+    	web root directory for subscribers (default "html")
 ```
 
 Users should point their web browser to `http://<server-ip>:8080/static/`
