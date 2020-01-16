@@ -28,11 +28,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pions/webrtc"
-	"github.com/pions/webrtc/pkg/ice"
-	"github.com/pions/webrtc/pkg/media"
-	"github.com/pions/webrtc/pkg/media/samplebuilder"
-	"github.com/pions/webrtc/pkg/rtp/codecs"
+	"github.com/pion/ice"
+	"github.com/pion/rtp"
+	"github.com/pion/rtp/codecs"
+	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v2/pkg/media"
+	"github.com/pion/webrtc/v2/pkg/media/samplebuilder"
 	"nanomsg.org/go-mangos"
 	"nanomsg.org/go-mangos/protocol/sub"
 	"nanomsg.org/go-mangos/transport/inproc"
@@ -97,7 +98,12 @@ func (c *Conn) setupSession(ctx context.Context, cmd CmdSession) error {
 		return err
 	}
 
-	j, err := json.Marshal(answer.Sdp)
+	err = c.rtcPeer.pc.SetLocalDescription(answer)
+	if err != nil {
+		return nil
+	}
+
+	j, err := json.Marshal(answer.SDP)
 	if err != nil {
 		return err
 	}
@@ -209,11 +215,11 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 			}
 
 			// discard topic data[:4]
-			sample := media.RTCSample{}
+			sample := media.Sample{}
 			sample.Samples = binary.LittleEndian.Uint32(data[4:8])
 			sample.Data = data[8:]
 
-			c.rtcPeer.track.Samples <- sample
+			c.rtcPeer.track.WriteSample(sample)
 		}
 	}()
 
@@ -257,7 +263,7 @@ func (c *Conn) writeMsg(val interface{}) error {
 }
 
 // WebRTC callback function
-func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
+func (c *Conn) rtcTrackHandler(track *webrtc.Track, receiver *webrtc.RTPReceiver) {
 	go func() {
 		var err error
 		sb := samplebuilder.New(maxLate, &codecs.OpusPacket{})
@@ -267,48 +273,54 @@ func (c *Conn) rtcTrackHandler(track *webrtc.RTCTrack) {
 			select {
 			case <-c.trackQuitChan:
 				return
-			case p := <-track.Packets:
-				c.Lock()
-				if c.spSock == nil {
-					// publisher hasn't connected yet
-					c.Unlock()
-					continue
-				}
-				c.Unlock()
-				// packet goes into samplebuilder, next valid sample comes out
-				sb.Push(p)
-				sample := sb.Pop()
-				if sample == nil {
-					continue
-				}
-				c.Lock()
-				// mangoes socket requires []byte where leading bytes is the subscription topic
-				buf := bytes.NewBuffer(c.spTopic)
-				binary.Write(buf, binary.LittleEndian, sample.Samples)
-				buf.Write(sample.Data)
-				if err = c.spSock.Send(buf.Bytes()); err != nil {
-					if err == mangos.ErrClosed {
-						c.Log("sub sock send err: %s\n", err)
-						return
-					}
-					c.errChan <- fmt.Errorf("pub send failed: %s", err)
-				}
-				c.Unlock()
+			default:
 			}
+			var p *rtp.Packet
+			p, err = track.ReadRTP()
+			if err != nil {
+				c.errChan <- fmt.Errorf("error reading RTP packet: %s", err)
+				continue
+			}
+			c.Lock()
+			if c.spSock == nil {
+				// publisher hasn't connected yet
+				c.Unlock()
+				continue
+			}
+			c.Unlock()
+			// packet goes into samplebuilder, next valid sample comes out
+			sb.Push(p)
+			sample := sb.Pop()
+			if sample == nil {
+				continue
+			}
+			c.Lock()
+			// mangoes socket requires []byte where leading bytes is the subscription topic
+			buf := bytes.NewBuffer(c.spTopic)
+			binary.Write(buf, binary.LittleEndian, sample.Samples)
+			buf.Write(sample.Data)
+			if err = c.spSock.Send(buf.Bytes()); err != nil {
+				if err == mangos.ErrClosed {
+					c.Log("sub sock send err: %s\n", err)
+					return
+				}
+				c.errChan <- fmt.Errorf("pub send failed: %s", err)
+			}
+			c.Unlock()
 		}
 	}()
 }
 
 // WebRTC callback function
-func (c *Conn) rtcStateChangeHandler(connectionState ice.ConnectionState) {
+func (c *Conn) rtcStateChangeHandler(connectionState webrtc.ICEConnectionState) {
 
 	//var err error
 
 	switch connectionState {
 	case ice.ConnectionStateConnected:
 		c.Log("ice connected\n")
-		c.Log("remote SDP\n%s\n", c.rtcPeer.pc.RemoteDescription().Sdp)
-		c.Log("local SDP\n%s\n", c.rtcPeer.pc.LocalDescription().Sdp)
+		c.Log("remote SDP\n%s\n", c.rtcPeer.pc.RemoteDescription().SDP)
+		c.Log("local SDP\n%s\n", c.rtcPeer.pc.LocalDescription().SDP)
 		c.infoChan <- "ice connected"
 
 	case ice.ConnectionStateDisconnected:

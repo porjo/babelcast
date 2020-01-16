@@ -77,6 +77,7 @@ pc.ontrack = function (event) {
 		pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
 		*/
 
+pc.addTransceiver('audio', {'direction': 'sendrecv'})
 pc.createOffer({
 	offerToReceiveVideo: false, 
 	offerToReceiveAudio: true
