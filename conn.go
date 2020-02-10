@@ -34,9 +34,11 @@ import (
 	"github.com/pion/webrtc/v2"
 	"github.com/pion/webrtc/v2/pkg/media"
 	"github.com/pion/webrtc/v2/pkg/media/samplebuilder"
-	"nanomsg.org/go-mangos"
-	"nanomsg.org/go-mangos/protocol/sub"
-	"nanomsg.org/go-mangos/transport/inproc"
+	"go.nanomsg.org/mangos/v3"
+	"go.nanomsg.org/mangos/v3/protocol/sub"
+
+	// register transports
+	_ "go.nanomsg.org/mangos/v3/transport/inproc"
 )
 
 const maxLate = 50 // number of packets to skip
@@ -176,7 +178,6 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 		return fmt.Errorf("can't get new sub socket: %s", err)
 	}
 	c.Unlock()
-	c.spSock.AddTransport(inproc.NewTransport())
 	if err = c.spSock.Dial("inproc://babelcast/"); err != nil {
 		return fmt.Errorf("sub can't dial %s", err)
 	}

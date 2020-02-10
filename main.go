@@ -24,9 +24,11 @@ import (
 	"os"
 	"time"
 
-	"nanomsg.org/go-mangos"
-	"nanomsg.org/go-mangos/protocol/pub"
-	"nanomsg.org/go-mangos/transport/inproc"
+	"go.nanomsg.org/mangos/v3"
+	"go.nanomsg.org/mangos/v3/protocol/pub"
+
+	// register transports
+	_ "go.nanomsg.org/mangos/v3/transport/inproc"
 )
 
 const httpTimeout = 15 * time.Second
@@ -71,7 +73,6 @@ func main() {
 	if pubSocket, err = pub.NewSocket(); err != nil {
 		log.Fatalf("can't get new pub socket: %s", err)
 	}
-	pubSocket.AddTransport(inproc.NewTransport())
 	if err = pubSocket.Listen("inproc://babelcast/"); err != nil {
 		log.Fatalf("can't listen on pub socket: %s", err)
 	}
