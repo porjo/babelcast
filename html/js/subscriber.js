@@ -17,10 +17,10 @@ ws.onmessage = function (e)	{
 	if( 'Key' in wsMsg ) {
 		switch (wsMsg.Key) {
 			case 'info':
-				debug("server info", wsMsg.Value);
+				debug("server info:", wsMsg.Value);
 				break;
 			case 'error':
-				error("server error", wsMsg.Value);
+				error("server error:", wsMsg.Value);
 				document.getElementById('output').classList.add('hidden');
 				document.getElementById('channels').classList.add('hidden');
 				break;
