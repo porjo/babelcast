@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -41,10 +42,13 @@ type CmdConnect struct {
 	//Username string
 	Channel  string
 	Password string
+
+	SessionDescription string
 }
 
 type CmdSession struct {
 	SessionDescription string
+	IsSubscriber       bool
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -91,21 +95,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			switch msg.Key {
-			case "session":
-				cmd := CmdSession{}
-				err = json.Unmarshal(msg.Value, &cmd)
-				if err != nil {
-					c.errChan <- err
-					continue
-				}
-				err := c.setupSession(ctx, cmd)
-				if err != nil {
-					c.Log("setupSession error: %s\n", err)
-					c.errChan <- err
-					continue
-				}
+			case "get_channels":
 				// send list of channels to client
 				channels := reg.GetChannels()
+				fmt.Printf("channels %v\n", channels)
 				j, err := json.Marshal(channels)
 				if err != nil {
 					c.Log("getchannels marshal: %s\n", err)
@@ -117,8 +110,21 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.Log("%s\n", err)
 					continue
 				}
+			case "session_publisher":
+				cmd := CmdSession{}
+				err = json.Unmarshal(msg.Value, &cmd)
+				if err != nil {
+					c.errChan <- err
+					continue
+				}
+
+				err = c.setupSessionPublisher(ctx, cmd)
+				if err != nil {
+					c.Log("setupSession error: %s\n", err)
+					c.errChan <- err
+					continue
+				}
 			case "connect_publisher":
-				c.isPublisher = true
 				cmd := CmdConnect{}
 				err = json.Unmarshal(msg.Value, &cmd)
 				if err != nil {
@@ -141,6 +147,25 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.errChan <- err
 					continue
 				}
+
+				if cmd.SessionDescription == "" {
+					err := fmt.Errorf("Subscriber sessionDescription was empty")
+					c.Log("connectSubscriber error: %s\n", err)
+					c.errChan <- err
+					continue
+				}
+
+				cs := CmdSession{}
+				cs.SessionDescription = cmd.SessionDescription
+				c.channelName = cmd.Channel
+
+				err = c.setupSessionSubscriber(ctx, cs)
+				if err != nil {
+					c.Log("setupSession error: %s\n", err)
+					c.errChan <- err
+					continue
+				}
+
 				err := c.connectSubscriber(ctx, cmd)
 				if err != nil {
 					c.Log("connectSubscriber error: %s\n", err)

@@ -23,17 +23,11 @@ import (
 	"net/http"
 	"os"
 	"time"
-
-	"go.nanomsg.org/mangos/v3"
-	"go.nanomsg.org/mangos/v3/protocol/pub"
-
-	// register transports
-	_ "go.nanomsg.org/mangos/v3/transport/inproc"
 )
 
 const httpTimeout = 15 * time.Second
 
-var pubSocket mangos.Socket
+var pubsub *Pubsub
 var publisherPassword = ""
 
 var reg *Registry
@@ -69,13 +63,8 @@ func main() {
 		ReadTimeout:  httpTimeout,
 	}
 
-	var err error
-	if pubSocket, err = pub.NewSocket(); err != nil {
-		log.Fatalf("can't get new pub socket: %s", err)
-	}
-	if err = pubSocket.Listen("inproc://babelcast/"); err != nil {
-		log.Fatalf("can't listen on pub socket: %s", err)
-	}
+	pubsub = NewPubsub()
+	defer pubsub.Close()
 
 	reg = NewRegistry()
 

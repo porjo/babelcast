@@ -1,5 +1,4 @@
 
-var localStream;
 var audioTrack;
 
 document.getElementById('reload').addEventListener('click', function() {
@@ -11,7 +10,7 @@ document.getElementById('microphone').addEventListener('click', function() {
 });
 
 var toggleMic = function() {
-	var micEle = document.getElementById('microphone');
+	let micEle = document.getElementById('microphone');
 	micEle.classList.toggle('icon-mute');
 	micEle.classList.toggle('icon-mic');
 	micEle.classList.toggle('on');
@@ -23,16 +22,16 @@ document.getElementById('input-form').addEventListener('submit', function(e) {
 
 	document.getElementById('output').classList.remove('hidden');
 	document.getElementById('input-form').classList.add('hidden');
-	var params = {};
+	let params = {};
 
 	params.Channel = document.getElementById('channel').value;
 	params.Password = document.getElementById('password').value;
-	var val = {Key: 'connect_publisher', Value: params};
-	wsSend(val)
+	let val = {Key: 'connect_publisher', Value: params};
+	wsSend(val);
 });
 
 ws.onmessage = function (e)	{
-	var wsMsg = JSON.parse(e.data);
+	let wsMsg = JSON.parse(e.data);
 	if( 'Key' in wsMsg ) {
 		switch (wsMsg.Key) {
 			case 'info':
@@ -78,10 +77,9 @@ const signalMeter = document.querySelector('#microphone-meter meter');
 
 navigator.mediaDevices.getUserMedia(constraints)
 	.then(stream => {
-		localStream = stream
 
 		audioTrack = stream.getAudioTracks()[0];
-		pc.addStream(stream)
+		stream.getTracks().forEach(track => pc.addTrack(track, stream))
 		// mute until we're ready
 		audioTrack.enabled = false;
 
@@ -93,12 +91,12 @@ navigator.mediaDevices.getUserMedia(constraints)
 			}
 
 			// make the meter value relative to a sliding max
-			var max = 0.0
+			let max = 0.0;
 			setInterval(() => {
-				var val = soundMeter.instant.toFixed(2)
+				let val = soundMeter.instant.toFixed(2);
 				if( val > max ) { max = val }
 				if( max > 0) { val = (val / max) }
-				signalMeter.value = val
+				signalMeter.value = val;
 			}, 50);
 		});
 	})
@@ -107,3 +105,16 @@ navigator.mediaDevices.getUserMedia(constraints)
 pc.onnegotiationneeded = e =>
 	pc.createOffer().then(d => pc.setLocalDescription(d)).catch(debug)
 
+
+pc.onicecandidate = event => {
+	document.getElementById('spinner').classList.remove('hidden');
+
+	// Instead of trickle ICE (where each candidate gets send individually) we wait
+	// until the end and send them all at once in the sdp
+	if (event.candidate === null) {
+		let params = {};
+		params.SessionDescription = pc.localDescription.sdp;
+		let val = {Key: 'session_publisher', Value: params};
+		wsSend(val);
+	}
+}

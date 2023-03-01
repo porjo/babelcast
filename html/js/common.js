@@ -33,19 +33,19 @@ var debug = (...m) => {
 
 error = (...m) => {
 	console.log(...m)
-	var errorEle = document.getElementById('error');
+	let errorEle = document.getElementById('error');
 	errorEle.innerText = m.join(", ");
 	errorEle.classList.remove('hidden');
 }
 msg = m => {
-	var d = new Date(Date.now()).toLocaleString();
+	let d = new Date(Date.now()).toLocaleString();
 	// strip html
-	var div = document.createElement("div")
+	let div = document.createElement("div");
 	div.innerHtml = m.Message;
-	var a = div.innerText;
-	var msgEle = document.getElementById('messages');
+	let a = div.innerText;
+	let msgEle = document.getElementById('messages');
 	msgEle.classList.add('message');
-	var insEle = document.createElement("div");
+	let insEle = document.createElement("div");
 	insEle.innerHTML = "<span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span>";
 	msgEle.insertBefore(insEle, msgEle.firstChild);
 }
@@ -54,7 +54,7 @@ var wsSend = m => {
 	if (ws.readyState === 1) {
 		ws.send(JSON.stringify(m));
 	} else {
-		debug("WS send not ready, delaying...")
+		debug("WS send not ready, delaying...");
 		setTimeout(function() {
 			ws.send(JSON.stringify(m));
 		}, 2000);
@@ -62,7 +62,7 @@ var wsSend = m => {
 }
 
 ws.onopen = function() {
-	debug("WS connection open")
+	debug("WS connection open");
 };
 
 //
@@ -85,32 +85,22 @@ pc.oniceconnectionstatechange = e => {
 		case "disconnected":
 		case "closed":
 		case "completed":
-			break
+			break;
 		case "connected":
 			document.getElementById('spinner').classList.add('hidden');
-			var cbEle = document.getElementById('connect-button')
-			if(cbEle) { cbEle.classList.remove('hidden') };
-			break
+			let cb = document.getElementById('connect-button');
+			if(cb) { cb.classList.remove('hidden') };
+			break;
 		default:
-			debug("ice state unknown", e)
-			break
-	}
-}
-
-pc.onicecandidate = event => {
-	document.getElementById('spinner').classList.remove('hidden');
-	if (event.candidate === null) {
-		var params = {};
-		params.SessionDescription = pc.localDescription.sdp
-		var val = {Key: 'session', Value: params};
-		wsSend(val)
+			debug("ice state unknown", e);
+			break;
 	}
 }
 
 var startSession = sd => {
 	try {
-		pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}))
+		pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}));
 	} catch (e) {
-		alert(e)
+		alert(e);
 	}
 }

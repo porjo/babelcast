@@ -9,7 +9,7 @@ A translator would act as a publisher and people wanting to hear the translation
 
 ## Building
 
-Requires Go >= 1.11
+Requires Go >= 1.19
 
 Fetch the project `go get github.com/porjo/babelcast`
 
@@ -29,3 +29,7 @@ Users should point their web browser to `http://<server-ip>:8080/static/`
 
 If the `PUBLISHER_PASSWORD` environment variable is set, then publishers will be required to enter the
 password before they can connect.
+
+## Credit
+
+Thanks to the excellent [Pion](https://github.com/pion/webrtc) Go Webrtc library for making this possible.
