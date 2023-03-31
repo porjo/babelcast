@@ -9,6 +9,8 @@ A translator would act as a publisher and people wanting to hear the translation
 
 ## Building
 
+Download [precompiled binary for Linux](https://github.com/porjo/babelcast/releases/latest) or build it yourself.
+
 Requires Go >= 1.19
 
 Fetch the project `go get github.com/porjo/babelcast`
