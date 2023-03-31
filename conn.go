@@ -15,12 +15,12 @@ limitations under the License.
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"log"
 	"os"
 	"regexp"
@@ -28,20 +28,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/ice"
-	"github.com/pion/rtp"
-	"github.com/pion/rtp/codecs"
-	"github.com/pion/webrtc/v2"
-	"github.com/pion/webrtc/v2/pkg/media"
-	"github.com/pion/webrtc/v2/pkg/media/samplebuilder"
-	"go.nanomsg.org/mangos/v3"
-	"go.nanomsg.org/mangos/v3/protocol/sub"
-
-	// register transports
-	_ "go.nanomsg.org/mangos/v3/transport/inproc"
+	"github.com/pion/rtcp"
+	"github.com/pion/webrtc/v3"
 )
 
-const maxLate = 50 // number of packets to skip
+const (
+	maxLate         = 50 // number of packets to skip
+	rtcpPLIInterval = time.Second * 3
+)
 
 // channel name should NOT match the negation of valid characters
 var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
@@ -49,14 +43,12 @@ var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
 type Conn struct {
 	sync.Mutex
 
-	rtcPeer *WebRTCPeer
-	wsConn  *websocket.Conn
-	spSock  mangos.Socket
+	rtcPeer        *webrtc.PeerConnection
+	localTrackChan chan *webrtc.TrackLocalStaticRTP
+
+	wsConn *websocket.Conn
 
 	channelName string
-	// store channel name as 4 byte hash
-	// used as our pub/sub topic
-	spTopic []byte
 
 	errChan       chan error
 	infoChan      chan string
@@ -64,8 +56,7 @@ type Conn struct {
 
 	logger *log.Logger
 
-	isPublisher bool
-	hasClosed   bool
+	hasClosed bool
 }
 
 func NewConn(ws *websocket.Conn) *Conn {
@@ -74,6 +65,7 @@ func NewConn(ws *websocket.Conn) *Conn {
 	c.infoChan = make(chan string)
 	c.trackQuitChan = make(chan struct{})
 	c.logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	c.localTrackChan = make(chan *webrtc.TrackLocalStaticRTP)
 	// wrap Gorilla conn with our conn so we can extend functionality
 	c.wsConn = ws
 
@@ -85,25 +77,78 @@ func (c *Conn) Log(format string, v ...interface{}) {
 	c.logger.Printf(id+": "+format, v...)
 }
 
-func (c *Conn) setupSession(ctx context.Context, cmd CmdSession) error {
+func (c *Conn) setupSessionPublisher(ctx context.Context, cmd CmdSession) error {
 	var err error
 
 	offer := cmd.SessionDescription
-	c.rtcPeer, err = NewPC(offer, c.rtcStateChangeHandler, c.rtcTrackHandler)
+	c.rtcPeer, err = NewPCPublisher(offer, c.rtcStateChangeHandler, c.rtcTrackHandlerPublisher)
 	if err != nil {
 		return err
 	}
 
 	// Sets the LocalDescription, and starts our UDP listeners
-	answer, err := c.rtcPeer.pc.CreateAnswer(nil)
+	answer, err := c.rtcPeer.CreateAnswer(nil)
 	if err != nil {
 		return err
 	}
 
-	err = c.rtcPeer.pc.SetLocalDescription(answer)
+	// Create channel that is blocked until ICE Gathering is complete
+	gatherComplete := webrtc.GatheringCompletePromise(c.rtcPeer)
+
+	err = c.rtcPeer.SetLocalDescription(answer)
 	if err != nil {
 		return nil
 	}
+
+	// Block until ICE Gathering is complete, disabling trickle ICE
+	// we do this because we only can exchange one signaling message
+	// in a production application you should exchange ICE Candidates via OnICECandidate
+	<-gatherComplete
+
+	j, err := json.Marshal(answer.SDP)
+	if err != nil {
+		return err
+	}
+	err = c.writeMsg(wsMsg{Key: "sd_answer", Value: j})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Conn) setupSessionSubscriber(ctx context.Context, cmd CmdSession) error {
+	var err error
+
+	channel := reg.GetChannel(c.channelName)
+	if channel == nil {
+		return fmt.Errorf("channel '%s' not found", c.channelName)
+	}
+
+	offer := cmd.SessionDescription
+	c.rtcPeer, err = NewPCSubscriber(offer, channel, c.rtcStateChangeHandler)
+	if err != nil {
+		return err
+	}
+
+	// Sets the LocalDescription, and starts our UDP listeners
+	answer, err := c.rtcPeer.CreateAnswer(nil)
+	if err != nil {
+		return err
+	}
+
+	// Create channel that is blocked until ICE Gathering is complete
+	gatherComplete := webrtc.GatheringCompletePromise(c.rtcPeer)
+
+	err = c.rtcPeer.SetLocalDescription(answer)
+	if err != nil {
+		return nil
+	}
+
+	// Block until ICE Gathering is complete, disabling trickle ICE
+	// we do this because we only can exchange one signaling message
+	// in a production application you should exchange ICE Candidates via OnICECandidate
+	<-gatherComplete
 
 	j, err := json.Marshal(answer.SDP)
 	if err != nil {
@@ -140,13 +185,10 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	c.Unlock()
 	c.Log("setting up publisher for channel '%s'\n", c.channelName)
 
-	c.setTopic(c.channelName)
+	localTrack := <-c.localTrackChan
+	c.Log("publisher has localTrack\n")
 
-	c.Lock()
-	c.spSock = pubSocket
-	c.Unlock()
-
-	if err := reg.AddPublisher(c.channelName); err != nil {
+	if err := reg.AddPublisher(c.channelName, localTrack); err != nil {
 		return err
 	}
 
@@ -154,13 +196,10 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 }
 
 func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
-	var err error
 
 	if c.rtcPeer == nil {
 		return fmt.Errorf("webrtc session not established")
 	}
-
-	//var username string
 
 	if cmd.Channel == "" {
 		return fmt.Errorf("channel cannot be empty")
@@ -169,60 +208,7 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
 
-	c.channelName = cmd.Channel
-
 	c.Log("setting up subscriber for channel '%s'\n", c.channelName)
-	c.Lock()
-	if c.spSock, err = sub.NewSocket(); err != nil {
-		c.Unlock()
-		return fmt.Errorf("can't get new sub socket: %s", err)
-	}
-	c.Unlock()
-	if err = c.spSock.Dial("inproc://babelcast/"); err != nil {
-		return fmt.Errorf("sub can't dial %s", err)
-	}
-
-	c.setTopic(c.channelName)
-	c.Lock()
-	if err = c.spSock.SetOption(mangos.OptionSubscribe, c.spTopic); err != nil {
-		c.Unlock()
-		return fmt.Errorf("sub can't subscribe %s", err)
-	}
-	c.Unlock()
-
-	if err = reg.AddSubscriber(c.channelName); err != nil {
-		return err
-	}
-
-	go func() {
-		defer c.Log("sub read goroutine quitting...\n")
-		defer c.Close()
-
-		var data []byte
-		for {
-
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			if data, err = c.spSock.Recv(); err != nil {
-				if err == mangos.ErrClosed {
-					c.Log("sub sock recv err: %s\n", err)
-					return
-				}
-				c.errChan <- fmt.Errorf("sub sock recv err %s\n", err)
-				continue
-			}
-
-			// discard topic data[:4]
-			sample := media.Sample{}
-			sample.Samples = binary.LittleEndian.Uint32(data[4:8])
-			sample.Data = data[8:]
-
-			c.rtcPeer.track.WriteSample(sample)
-		}
-	}()
 
 	return nil
 }
@@ -238,9 +224,6 @@ func (c *Conn) Close() {
 	}
 	if c.rtcPeer != nil {
 		c.rtcPeer.Close()
-	}
-	if c.spSock != nil && !c.isPublisher {
-		c.spSock.Close()
 	}
 	if c.wsConn != nil {
 		c.wsConn.Close()
@@ -264,52 +247,48 @@ func (c *Conn) writeMsg(val interface{}) error {
 }
 
 // WebRTC callback function
-func (c *Conn) rtcTrackHandler(track *webrtc.Track, receiver *webrtc.RTPReceiver) {
+func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+
+	// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
+	// This can be less wasteful by processing incoming RTCP events, then we would emit a NACK/PLI when a viewer requests it
 	go func() {
-		var err error
-		sb := samplebuilder.New(maxLate, &codecs.OpusPacket{})
-		defer c.Log("rtcTrackhandler goroutine quitting...\n")
-		defer c.Close()
-		for {
-			select {
-			case <-c.trackQuitChan:
-				return
-			default:
-			}
-			var p *rtp.Packet
-			p, err = track.ReadRTP()
+		ticker := time.NewTicker(rtcpPLIInterval)
+		for range ticker.C {
+			err := c.rtcPeer.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())}})
 			if err != nil {
-				c.errChan <- fmt.Errorf("error reading RTP packet: %s", err)
-				continue
+				fmt.Printf("WriteRTCP err '%s'\n", err)
+				return
 			}
-			c.Lock()
-			if c.spSock == nil {
-				// publisher hasn't connected yet
-				c.Unlock()
-				continue
-			}
-			c.Unlock()
-			// packet goes into samplebuilder, next valid sample comes out
-			sb.Push(p)
-			sample := sb.Pop()
-			if sample == nil {
-				continue
-			}
-			c.Lock()
-			// mangoes socket requires []byte where leading bytes is the subscription topic
-			buf := bytes.NewBuffer(c.spTopic)
-			binary.Write(buf, binary.LittleEndian, sample.Samples)
-			buf.Write(sample.Data)
-			if err = c.spSock.Send(buf.Bytes()); err != nil {
-				if err == mangos.ErrClosed {
-					c.Log("sub sock send err: %s\n", err)
-					return
-				}
-				c.errChan <- fmt.Errorf("pub send failed: %s", err)
-			}
-			c.Unlock()
 		}
 	}()
+
+	// Create a local track, all our SFU clients will be fed via this track
+	localTrack, newTrackErr := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, "audio", "babelcast")
+	if newTrackErr != nil {
+		panic(newTrackErr)
+	}
+	c.Log("trackhandler sending localtrack\n")
+	c.localTrackChan <- localTrack
+	c.Log("trackhandler sent localtrack\n")
+
+	rtpBuf := make([]byte, 1400)
+	for {
+		i, _, readErr := remoteTrack.Read(rtpBuf)
+		if readErr != nil {
+			fmt.Printf("remoteTrack.Read err '%s'\n", readErr)
+			return
+		}
+		//		fmt.Printf("remoteTrack.Read len %d bytes\n", i)
+
+		// ErrClosedPipe means we don't have any subscribers, this is ok if no peers have connected yet
+		_, err := localTrack.Write(rtpBuf[:i])
+		if err != nil {
+			fmt.Printf("localTrack.write err '%s'\n", err)
+			if !errors.Is(err, io.ErrClosedPipe) {
+				return
+			}
+		}
+	}
 }
 
 // WebRTC callback function
@@ -318,13 +297,13 @@ func (c *Conn) rtcStateChangeHandler(connectionState webrtc.ICEConnectionState) 
 	//var err error
 
 	switch connectionState {
-	case ice.ConnectionStateConnected:
+	case webrtc.ICEConnectionStateConnected:
 		c.Log("ice connected\n")
-		c.Log("remote SDP\n%s\n", c.rtcPeer.pc.RemoteDescription().SDP)
-		c.Log("local SDP\n%s\n", c.rtcPeer.pc.LocalDescription().SDP)
+		c.Log("remote SDP\n%s\n", c.rtcPeer.RemoteDescription().SDP)
+		c.Log("local SDP\n%s\n", c.rtcPeer.LocalDescription().SDP)
 		c.infoChan <- "ice connected"
 
-	case ice.ConnectionStateDisconnected:
+	case webrtc.ICEConnectionStateDisconnected:
 		c.Log("ice disconnected\n")
 		c.Close()
 
@@ -387,14 +366,6 @@ func (c *Conn) PingHandler(ctx context.Context) {
 			c.Unlock()
 		}
 	}
-}
-
-// store a 32bit hash of the channel name in a 4 byte slice
-func (c *Conn) setTopic(channelName string) {
-	c.Lock()
-	c.spTopic = make([]byte, 4)
-	binary.LittleEndian.PutUint32(c.spTopic, hash(c.channelName))
-	c.Unlock()
 }
 
 func hash(s string) uint32 {

@@ -15,36 +15,18 @@ limitations under the License.
 package main
 
 import (
-	"math/rand"
+	"fmt"
 
-	//"github.com/pion/ice"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 )
 
-type WebRTCPeer struct {
-	pc    *webrtc.PeerConnection
-	track *webrtc.Track
-}
-
-func (w *WebRTCPeer) Close() error {
-	return w.pc.Close()
-}
-
-func NewPC(offerSd string, onStateChange func(connectionState webrtc.ICEConnectionState), onTrack func(track *webrtc.Track, receiver *webrtc.RTPReceiver)) (*WebRTCPeer, error) {
+func NewPCPublisher(offerSd string, onStateChange func(connectionState webrtc.ICEConnectionState), onTrack func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver)) (*webrtc.PeerConnection, error) {
 
 	var err error
 	var pc *webrtc.PeerConnection
-	var opusTrack *webrtc.Track
-	var peer *WebRTCPeer
-
-	// Register only audio codec (Opus)
-	m := webrtc.MediaEngine{}
-	m.RegisterCodec(webrtc.NewRTPOpusCodec(webrtc.DefaultPayloadTypeOpus, 48000))
-
-	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))
 
 	// Create a new RTCPeerConnection
-	pc, err = api.NewPeerConnection(webrtc.Configuration{
+	pc, err = webrtc.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
 				URLs: []string{"stun:stun.l.google.com:19302"},
@@ -55,18 +37,14 @@ func NewPC(offerSd string, onStateChange func(connectionState webrtc.ICEConnecti
 		return nil, err
 	}
 
+	// Allow us to receive 1 audio track
+	if _, err = pc.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio); err != nil {
+		return nil, err
+	}
+
 	pc.OnICEConnectionStateChange(onStateChange)
 
 	pc.OnTrack(onTrack)
-	// Create a audio track
-	opusTrack, err = pc.NewTrack(webrtc.DefaultPayloadTypeOpus, rand.Uint32(), "audio", "babelcast")
-	if err != nil {
-		return nil, err
-	}
-	_, err = pc.AddTrack(opusTrack)
-	if err != nil {
-		return nil, err
-	}
 
 	// Set the remote SessionDescription
 	offer := webrtc.SessionDescription{
@@ -77,7 +55,55 @@ func NewPC(offerSd string, onStateChange func(connectionState webrtc.ICEConnecti
 		return nil, err
 	}
 
-	peer = &WebRTCPeer{pc: pc, track: opusTrack}
+	return pc, nil
+}
 
-	return peer, nil
+func NewPCSubscriber(offerSd string, channel *Channel, onStateChange func(connectionState webrtc.ICEConnectionState)) (*webrtc.PeerConnection, error) {
+
+	var err error
+	var pc *webrtc.PeerConnection
+
+	// Create a new RTCPeerConnection
+	pc, err = webrtc.NewPeerConnection(webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	rtpSender, err := pc.AddTrack(channel.LocalTrack)
+	if err != nil {
+		return nil, fmt.Errorf("rtcPeer.AddTrack err '%w'", err)
+	}
+
+	// Read incoming RTCP packets
+	// Before these packets are returned they are processed by interceptors. For things
+	// like NACK this needs to be called.
+	go func() {
+		rtcpBuf := make([]byte, 1500)
+		for {
+			_, _, rtcpErr := rtpSender.Read(rtcpBuf)
+			if rtcpErr != nil {
+				fmt.Printf("rtpSender.Read err '%s'\n", rtcpErr)
+				return
+			}
+		}
+	}()
+
+	pc.OnICEConnectionStateChange(onStateChange)
+
+	// Set the remote SessionDescription
+	offer := webrtc.SessionDescription{
+		Type: webrtc.SDPTypeOffer,
+		SDP:  offerSd,
+	}
+	if err := pc.SetRemoteDescription(offer); err != nil {
+		return nil, err
+	}
+
+	return pc, nil
 }

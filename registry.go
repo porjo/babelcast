@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"sync"
+
+	"github.com/pion/webrtc/v3"
 )
 
 // keep track of which channels are being used
@@ -16,6 +18,7 @@ type Channel struct {
 	PublisherCount  int
 	SubscriberCount int
 	Active          bool
+	LocalTrack      *webrtc.TrackLocalStaticRTP
 }
 
 /*
@@ -30,7 +33,7 @@ func NewRegistry() *Registry {
 	return r
 }
 
-func (r *Registry) AddPublisher(channelName string) error {
+func (r *Registry) AddPublisher(channelName string, localTrack *webrtc.TrackLocalStaticRTP) error {
 	var channel *Channel
 	var ok bool
 	r.Lock()
@@ -42,7 +45,7 @@ func (r *Registry) AddPublisher(channelName string) error {
 		channel.PublisherCount++
 		channel.Active = true
 	} else {
-		r.Channels[channelName] = &Channel{PublisherCount: 1, Active: true}
+		r.Channels[channelName] = &Channel{PublisherCount: 1, Active: true, LocalTrack: localTrack}
 	}
 	return nil
 }
@@ -90,4 +93,15 @@ func (r *Registry) GetChannels() []string {
 		}
 	}
 	return channels
+}
+
+func (r *Registry) GetChannel(channelName string) *Channel {
+	r.Lock()
+	defer r.Unlock()
+	for name, c := range r.Channels {
+		if c.Active && name == channelName {
+			return c
+		}
+	}
+	return nil
 }
