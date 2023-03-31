@@ -33,7 +33,6 @@ import (
 )
 
 const (
-	maxLate         = 50 // number of packets to skip
 	rtcpPLIInterval = time.Second * 3
 )
 

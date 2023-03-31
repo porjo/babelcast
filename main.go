@@ -27,7 +27,6 @@ import (
 
 const httpTimeout = 15 * time.Second
 
-var pubsub *Pubsub
 var publisherPassword = ""
 
 var reg *Registry
@@ -62,9 +61,6 @@ func main() {
 		WriteTimeout: httpTimeout,
 		ReadTimeout:  httpTimeout,
 	}
-
-	pubsub = NewPubsub()
-	defer pubsub.Close()
 
 	reg = NewRegistry()
 
