@@ -32,4 +32,4 @@ password before they can connect.
 
 ## Credit
 
-Thanks to the excellent [Pion](https://github.com/pion/webrtc) Go Webrtc library for making this possible.
+Thanks to the excellent [Pion](https://github.com/pion/webrtc) library for making WebRTC so accessible.
