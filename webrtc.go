@@ -20,51 +20,17 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-func NewPCPublisher(offerSd string, onStateChange func(connectionState webrtc.ICEConnectionState), onTrack func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver)) (*webrtc.PeerConnection, error) {
-
-	var err error
-	var pc *webrtc.PeerConnection
-
-	// Create a new RTCPeerConnection
-	pc, err = webrtc.NewPeerConnection(webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Allow us to receive 1 audio track
-	if _, err = pc.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio); err != nil {
-		return nil, err
-	}
-
-	pc.OnICEConnectionStateChange(onStateChange)
-
-	pc.OnTrack(onTrack)
-
-	// Set the remote SessionDescription
-	offer := webrtc.SessionDescription{
-		Type: webrtc.SDPTypeOffer,
-		SDP:  offerSd,
-	}
-	if err := pc.SetRemoteDescription(offer); err != nil {
-		return nil, err
-	}
-
-	return pc, nil
+type WebRTCPeer struct {
+	pc             *webrtc.PeerConnection
+	localTrackChan chan *webrtc.TrackLocalStaticRTP
 }
 
-func NewPCSubscriber(offerSd string, channel *Channel, onStateChange func(connectionState webrtc.ICEConnectionState)) (*webrtc.PeerConnection, error) {
+func NewWebRTCPeer() (*WebRTCPeer, error) {
 
 	var err error
-	var pc *webrtc.PeerConnection
-
+	wp := &WebRTCPeer{}
 	// Create a new RTCPeerConnection
-	pc, err = webrtc.NewPeerConnection(webrtc.Configuration{
+	wp.pc, err = webrtc.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
 				URLs: []string{"stun:stun.l.google.com:19302"},
@@ -74,10 +40,49 @@ func NewPCSubscriber(offerSd string, channel *Channel, onStateChange func(connec
 	if err != nil {
 		return nil, err
 	}
+	wp.localTrackChan = make(chan *webrtc.TrackLocalStaticRTP)
 
-	rtpSender, err := pc.AddTrack(channel.LocalTrack)
+	return wp, nil
+}
+
+func (wp *WebRTCPeer) SetupPublisher(offer webrtc.SessionDescription, onStateChange func(connectionState webrtc.ICEConnectionState), onTrack func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver), onIceCandidate func(c *webrtc.ICECandidate)) (answer webrtc.SessionDescription, err error) {
+
+	// Allow us to receive 1 audio track
+	if _, err = wp.pc.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio); err != nil {
+		return
+	}
+
+	wp.pc.OnICEConnectionStateChange(onStateChange)
+	wp.pc.OnTrack(onTrack)
+	wp.pc.OnICECandidate(onIceCandidate)
+
+	// Set the remote SessionDescription
+	if err = wp.pc.SetRemoteDescription(offer); err != nil {
+		return
+	}
+
+	// Sets the LocalDescription, and starts our UDP listeners
+	answer, err = wp.pc.CreateAnswer(nil)
 	if err != nil {
-		return nil, fmt.Errorf("rtcPeer.AddTrack err '%w'", err)
+		return
+	}
+
+	err = wp.pc.SetLocalDescription(answer)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// SetupSubscriber completes the subscriber WebRTC session setup.
+// Earlier we called webrtc.SetRemoteDescription() to allow ICE to kick off
+func (wp *WebRTCPeer) SetupSubscriber(channel *Channel, onStateChange func(connectionState webrtc.ICEConnectionState), onIceCandidate func(c *webrtc.ICECandidate)) (answer webrtc.SessionDescription, err error) {
+
+	rtpSender, addTrackErr := wp.pc.AddTrack(channel.LocalTrack)
+	if addTrackErr != nil {
+		err = addTrackErr
+		return
 	}
 
 	// Read incoming RTCP packets
@@ -94,16 +99,20 @@ func NewPCSubscriber(offerSd string, channel *Channel, onStateChange func(connec
 		}
 	}()
 
-	pc.OnICEConnectionStateChange(onStateChange)
+	wp.pc.OnICEConnectionStateChange(onStateChange)
+	wp.pc.OnICECandidate(onIceCandidate)
 
-	// Set the remote SessionDescription
-	offer := webrtc.SessionDescription{
-		Type: webrtc.SDPTypeOffer,
-		SDP:  offerSd,
-	}
-	if err := pc.SetRemoteDescription(offer); err != nil {
-		return nil, err
+	// Sets the LocalDescription, and starts our UDP listeners
+	answer, err = wp.pc.CreateAnswer(nil)
+	if err != nil {
+		return
 	}
 
-	return pc, nil
+	ldErr := wp.pc.SetLocalDescription(answer)
+	if ldErr != nil {
+		err = ldErr
+		return
+	}
+
+	return
 }

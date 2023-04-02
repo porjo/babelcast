@@ -21,13 +21,11 @@ Fetch the project `go get github.com/porjo/babelcast`
 Usage of ./babelcast:
   -port int
     	listen on this port (default 8080)
-  -webRootPublisher string
-    	web root directory for publisher (default "html")
-  -webRootSubscriber string
-    	web root directory for subscribers (default "html")
+  -webRoot string
+    	web root directory (default "html")
 ```
 
-Users should point their web browser to `http://<server-ip>:8080/static/`
+Then point your web browser to `http://<server-ip>:8080/`
 
 If the `PUBLISHER_PASSWORD` environment variable is set, then publishers will be required to enter the
 password before they can connect.

@@ -45,6 +45,9 @@ ws.onmessage = function (e)	{
 			case 'sd_answer':
 				startSession(wsMsg.Value);
 				break;
+			case 'ice_candidate':
+				pc.addIceCandidate(wsMsg.Value)
+				break;
 		}
 	}
 };
@@ -75,46 +78,40 @@ try {
 
 const signalMeter = document.querySelector('#microphone-meter meter');
 
-navigator.mediaDevices.getUserMedia(constraints)
-	.then(stream => {
+navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+	audioTrack = stream.getAudioTracks()[0];
+	stream.getTracks().forEach(track => pc.addTrack(track, stream))
+	// mute until we're ready
+	audioTrack.enabled = false;
 
-		audioTrack = stream.getAudioTracks()[0];
-		stream.getTracks().forEach(track => pc.addTrack(track, stream))
-		// mute until we're ready
-		audioTrack.enabled = false;
+	const soundMeter = new SoundMeter(window.audioContext);
+	soundMeter.connectToSource(stream, function(e) {
+		if (e) {
+			alert(e);
+			return;
+		}
 
-		const soundMeter = new SoundMeter(window.audioContext);
-		soundMeter.connectToSource(stream, function(e) {
-			if (e) {
-				alert(e);
-				return;
-			}
+		// make the meter value relative to a sliding max
+		let max = 0.0;
+		setInterval(() => {
+			let val = soundMeter.instant.toFixed(2);
+			if( val > max ) { max = val }
+			if( max > 0) { val = (val / max) }
+			signalMeter.value = val;
+		}, 50);
+	});
 
-			// make the meter value relative to a sliding max
-			let max = 0.0;
-			setInterval(() => {
-				let val = soundMeter.instant.toFixed(2);
-				if( val > max ) { max = val }
-				if( max > 0) { val = (val / max) }
-				signalMeter.value = val;
-			}, 50);
-		});
-	})
-	.catch(debug)
-
-pc.onnegotiationneeded = e =>
-	pc.createOffer().then(d => pc.setLocalDescription(d)).catch(debug)
+	pc.createOffer().then(d => {
+		pc.setLocalDescription(d);
+		let val = {Key: 'session_publisher', Value: d};
+		wsSend(val);
+	}).catch(debug)
+}).catch(debug)
 
 
-pc.onicecandidate = event => {
-	document.getElementById('spinner').classList.remove('hidden');
-
-	// Instead of trickle ICE (where each candidate gets send individually) we wait
-	// until the end and send them all at once in the sdp
-	if (event.candidate === null) {
-		let params = {};
-		params.SessionDescription = pc.localDescription.sdp;
-		let val = {Key: 'session_publisher', Value: params};
+pc.onicecandidate = e => {
+	if (e.candidate && e.candidate.candidate !== "") {
+		let val = {Key: 'ice_candidate', Value: e.candidate};
 		wsSend(val);
 	}
 }

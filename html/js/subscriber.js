@@ -1,6 +1,9 @@
 
-var allCandidatesGathered = false;
-var getChannelsId = null;
+var getChannelsId = setInterval(function() {
+	console.log("get_channels");
+	let val = {Key: 'get_channels'}
+	wsSend(val);
+}, 1000);
 
 document.getElementById('reload').addEventListener('click', function() {
 	window.location.reload(false);
@@ -11,9 +14,6 @@ function channelClick(e) {
 	document.getElementById('channels').classList.add('hidden');
 	let params = {};
 	params.Channel = e.target.innerText;
-	if( allCandidatesGathered ) {
-		params.SessionDescription = pc.localDescription.sdp
-	}
 	let val = {Key: 'connect_subscriber', Value: params};
 	wsSend(val);
 };
@@ -54,6 +54,9 @@ ws.onmessage = function (e)	{
 			case 'channels':
 				updateChannels(wsMsg.Value);
 				break;
+			case 'ice_candidate':
+				pc.addIceCandidate(wsMsg.Value)
+				break;
 		}
 	}
 };
@@ -78,45 +81,12 @@ pc.ontrack = function (event) {
 	document.getElementById('media').appendChild(el);
 }
 
-// FIXME:
-// the first createOffer works for publisher but not subscriber
-// the second createOffer works for subscriber but not for publisher
-// ... why??
-// ----------------------------------------------------------------
-/*
-	pc.onnegotiationneeded = e =>
-		pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
-		*/
-
-//pc.addTransceiver('audio', {'direction': 'sendrecv'})
 pc.addTransceiver('audio')
-/*pc.createOffer({
-	offerToReceiveVideo: false, 
-	offerToReceiveAudio: true
-	*/
-pc.createOffer().then(d => pc.setLocalDescription(d)).catch(debug)
 
-pc.onicecandidate = event => {
-	document.getElementById('spinner').classList.remove('hidden');
+pc.createOffer().then(d => {
+	pc.setLocalDescription(d)
+	let val = {Key: 'session_subscriber', Value: d};
+	wsSend(val);
+}).catch(debug);
 
-	// Instead of trickle ICE (where each candidate gets send individually) we wait
-	// until the end and send them all at once in the sdp
-	if (event.candidate === null) {
-
-		allCandidatesGathered = true;
-		getChannelsId = setInterval(function() {
-			console.log("get_channels");
-			let val = {Key: 'get_channels'}
-			wsSend(val);
-		}, 1000);
-
-		/*
-		let params = {};
-		params.SessionDescription = pc.localDescription.sdp;
-		params.IsSubscriber = true;
-		let val = {Key: 'session', Value: params};
-		wsSend(val);
-		*/
-	}
-}
 // ----------------------------------------------------------------

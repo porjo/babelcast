@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v3"
 )
 
 const PingInterval = 10 * time.Second
@@ -39,16 +40,8 @@ type wsMsg struct {
 }
 
 type CmdConnect struct {
-	//Username string
 	Channel  string
 	Password string
-
-	SessionDescription string
-}
-
-type CmdSession struct {
-	SessionDescription string
-	IsSubscriber       bool
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +60,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	c := NewConn(gconn)
 	defer c.Close()
+	c.peer, err = NewWebRTCPeer()
+	if err != nil {
+		c.Log("NewWebRTCPeer err %s\n", err)
+		return
+	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
@@ -95,6 +93,20 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			switch msg.Key {
+			case "ice_candidate":
+				var candidate webrtc.ICECandidateInit
+				err = json.Unmarshal(msg.Value, &candidate)
+				if err != nil {
+					c.errChan <- err
+					continue
+				}
+
+				if candidate.Candidate != "" {
+					if err = c.peer.pc.AddICECandidate(candidate); err != nil {
+						c.Log("AddICECandidate error %s\n", err)
+						continue
+					}
+				}
 			case "get_channels":
 				// send list of channels to client
 				channels := reg.GetChannels()
@@ -110,15 +122,27 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					c.Log("%s\n", err)
 					continue
 				}
-			case "session_publisher":
-				cmd := CmdSession{}
-				err = json.Unmarshal(msg.Value, &cmd)
+			case "session_subscriber":
+				// subscriber session is only partially setup here as we have to wait for
+				// channel selection to complete the setup
+				var offer webrtc.SessionDescription
+				err = json.Unmarshal(msg.Value, &offer)
 				if err != nil {
 					c.errChan <- err
 					continue
 				}
-
-				err = c.setupSessionPublisher(ctx, cmd)
+				if err := c.peer.pc.SetRemoteDescription(offer); err != nil {
+					c.errChan <- err
+					continue
+				}
+			case "session_publisher":
+				var offer webrtc.SessionDescription
+				err = json.Unmarshal(msg.Value, &offer)
+				if err != nil {
+					c.errChan <- err
+					continue
+				}
+				err = c.setupSessionPublisher(ctx, offer)
 				if err != nil {
 					c.Log("setupSession error: %s\n", err)
 					c.errChan <- err
@@ -148,18 +172,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				if cmd.SessionDescription == "" {
-					err := fmt.Errorf("Subscriber sessionDescription was empty")
-					c.Log("connectSubscriber error: %s\n", err)
-					c.errChan <- err
-					continue
-				}
-
-				cs := CmdSession{}
-				cs.SessionDescription = cmd.SessionDescription
+				// finish subscriber session setup here
 				c.channelName = cmd.Channel
-
-				err = c.setupSessionSubscriber(ctx, cs)
+				err = c.setupSessionSubscriber(ctx)
 				if err != nil {
 					c.Log("setupSession error: %s\n", err)
 					c.errChan <- err

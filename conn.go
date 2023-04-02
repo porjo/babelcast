@@ -42,8 +42,7 @@ var channelRegexp = regexp.MustCompile("[^a-zA-Z0-9 ]+")
 type Conn struct {
 	sync.Mutex
 
-	rtcPeer        *webrtc.PeerConnection
-	localTrackChan chan *webrtc.TrackLocalStaticRTP
+	peer *WebRTCPeer
 
 	wsConn *websocket.Conn
 
@@ -64,7 +63,6 @@ func NewConn(ws *websocket.Conn) *Conn {
 	c.infoChan = make(chan string)
 	c.trackQuitChan = make(chan struct{})
 	c.logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
-	c.localTrackChan = make(chan *webrtc.TrackLocalStaticRTP)
 	// wrap Gorilla conn with our conn so we can extend functionality
 	c.wsConn = ws
 
@@ -76,33 +74,12 @@ func (c *Conn) Log(format string, v ...interface{}) {
 	c.logger.Printf(id+": "+format, v...)
 }
 
-func (c *Conn) setupSessionPublisher(ctx context.Context, cmd CmdSession) error {
-	var err error
+func (c *Conn) setupSessionPublisher(ctx context.Context, offer webrtc.SessionDescription) error {
 
-	offer := cmd.SessionDescription
-	c.rtcPeer, err = NewPCPublisher(offer, c.rtcStateChangeHandler, c.rtcTrackHandlerPublisher)
+	answer, err := c.peer.SetupPublisher(offer, c.rtcStateChangeHandler, c.rtcTrackHandlerPublisher, c.onIceCandidate)
 	if err != nil {
 		return err
 	}
-
-	// Sets the LocalDescription, and starts our UDP listeners
-	answer, err := c.rtcPeer.CreateAnswer(nil)
-	if err != nil {
-		return err
-	}
-
-	// Create channel that is blocked until ICE Gathering is complete
-	gatherComplete := webrtc.GatheringCompletePromise(c.rtcPeer)
-
-	err = c.rtcPeer.SetLocalDescription(answer)
-	if err != nil {
-		return nil
-	}
-
-	// Block until ICE Gathering is complete, disabling trickle ICE
-	// we do this because we only can exchange one signaling message
-	// in a production application you should exchange ICE Candidates via OnICECandidate
-	<-gatherComplete
 
 	j, err := json.Marshal(answer.SDP)
 	if err != nil {
@@ -116,38 +93,17 @@ func (c *Conn) setupSessionPublisher(ctx context.Context, cmd CmdSession) error 
 	return nil
 }
 
-func (c *Conn) setupSessionSubscriber(ctx context.Context, cmd CmdSession) error {
-	var err error
+func (c *Conn) setupSessionSubscriber(ctx context.Context) error {
 
 	channel := reg.GetChannel(c.channelName)
 	if channel == nil {
 		return fmt.Errorf("channel '%s' not found", c.channelName)
 	}
 
-	offer := cmd.SessionDescription
-	c.rtcPeer, err = NewPCSubscriber(offer, channel, c.rtcStateChangeHandler)
+	answer, err := c.peer.SetupSubscriber(channel, c.rtcStateChangeHandler, c.onIceCandidate)
 	if err != nil {
 		return err
 	}
-
-	// Sets the LocalDescription, and starts our UDP listeners
-	answer, err := c.rtcPeer.CreateAnswer(nil)
-	if err != nil {
-		return err
-	}
-
-	// Create channel that is blocked until ICE Gathering is complete
-	gatherComplete := webrtc.GatheringCompletePromise(c.rtcPeer)
-
-	err = c.rtcPeer.SetLocalDescription(answer)
-	if err != nil {
-		return nil
-	}
-
-	// Block until ICE Gathering is complete, disabling trickle ICE
-	// we do this because we only can exchange one signaling message
-	// in a production application you should exchange ICE Candidates via OnICECandidate
-	<-gatherComplete
 
 	j, err := json.Marshal(answer.SDP)
 	if err != nil {
@@ -163,7 +119,7 @@ func (c *Conn) setupSessionSubscriber(ctx context.Context, cmd CmdSession) error
 
 func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 
-	if c.rtcPeer == nil {
+	if c.peer.pc == nil {
 		return fmt.Errorf("webrtc session not established")
 	}
 
@@ -184,7 +140,7 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	c.Unlock()
 	c.Log("setting up publisher for channel '%s'\n", c.channelName)
 
-	localTrack := <-c.localTrackChan
+	localTrack := <-c.peer.localTrackChan
 	c.Log("publisher has localTrack\n")
 
 	if err := reg.AddPublisher(c.channelName, localTrack); err != nil {
@@ -196,7 +152,7 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 
 func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 
-	if c.rtcPeer == nil {
+	if c.peer.pc == nil {
 		return fmt.Errorf("webrtc session not established")
 	}
 
@@ -221,8 +177,8 @@ func (c *Conn) Close() {
 	if c.trackQuitChan != nil {
 		close(c.trackQuitChan)
 	}
-	if c.rtcPeer != nil {
-		c.rtcPeer.Close()
+	if c.peer.pc != nil {
+		c.peer.pc.Close()
 	}
 	if c.wsConn != nil {
 		c.wsConn.Close()
@@ -253,7 +209,7 @@ func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receive
 	go func() {
 		ticker := time.NewTicker(rtcpPLIInterval)
 		for range ticker.C {
-			err := c.rtcPeer.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())}})
+			err := c.peer.pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())}})
 			if err != nil {
 				fmt.Printf("WriteRTCP err '%s'\n", err)
 				return
@@ -267,7 +223,7 @@ func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receive
 		panic(newTrackErr)
 	}
 	c.Log("trackhandler sending localtrack\n")
-	c.localTrackChan <- localTrack
+	c.peer.localTrackChan <- localTrack
 	c.Log("trackhandler sent localtrack\n")
 
 	rtpBuf := make([]byte, 1400)
@@ -298,8 +254,8 @@ func (c *Conn) rtcStateChangeHandler(connectionState webrtc.ICEConnectionState) 
 	switch connectionState {
 	case webrtc.ICEConnectionStateConnected:
 		c.Log("ice connected\n")
-		c.Log("remote SDP\n%s\n", c.rtcPeer.RemoteDescription().SDP)
-		c.Log("local SDP\n%s\n", c.rtcPeer.LocalDescription().SDP)
+		c.Log("remote SDP\n%s\n", c.peer.pc.RemoteDescription().SDP)
+		c.Log("local SDP\n%s\n", c.peer.pc.LocalDescription().SDP)
 		c.infoChan <- "ice connected"
 
 	case webrtc.ICEConnectionStateDisconnected:
@@ -311,6 +267,26 @@ func (c *Conn) rtcStateChangeHandler(connectionState webrtc.ICEConnectionState) 
 		case c.infoChan <- "ice disconnected":
 		default:
 		}
+	}
+}
+
+// WebRTC callback function
+func (c *Conn) onIceCandidate(candidate *webrtc.ICECandidate) {
+	if candidate == nil {
+		return
+	}
+
+	j, err := json.Marshal(candidate.ToJSON())
+	if err != nil {
+		c.Log("marshal err %s\n", err)
+		return
+	}
+
+	m := wsMsg{Key: "ice_candidate", Value: j}
+	err = c.writeMsg(m)
+	if err != nil {
+		c.Log("writemsg err %s\n", err)
+		return
 	}
 }
 

@@ -20,8 +20,8 @@ if (loc.protocol === "https:") {
 	ws_uri = "ws:";
 }
 ws_uri += "//" + loc.host;
-var path = loc.pathname.replace(/\/$/, '');
-ws_uri += "/ws";
+var path = loc.pathname.substring(0, loc.pathname.lastIndexOf("/"));
+ws_uri += path + "/ws";
 
 var ws = new WebSocket(ws_uri);
 
@@ -69,6 +69,7 @@ ws.onopen = function() {
 // -------- WebRTC ------------
 //
 var pc = new RTCPeerConnection({
+
 	iceServers: [
 		{
 			urls: 'stun:stun.l.google.com:19302'
@@ -98,9 +99,17 @@ pc.oniceconnectionstatechange = e => {
 }
 
 var startSession = sd => {
+	document.getElementById('spinner').classList.remove('hidden');
 	try {
 		pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}));
 	} catch (e) {
 		alert(e);
+	}
+}
+
+pc.onicecandidate = e => {
+	if (e.candidate && e.candidate.candidate !== "") {
+		let val = {Key: 'ice_candidate', Value: e.candidate};
+		wsSend(val);
 	}
 }

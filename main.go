@@ -32,27 +32,20 @@ var publisherPassword = ""
 var reg *Registry
 
 func main() {
-	webRootPublisher := flag.String("webRootPublisher", "html", "web root directory for publisher")
-	webRootSubscriber := flag.String("webRootSubscriber", "html", "web root directory for subscribers")
+	webRoot := flag.String("webRoot", "html", "web root directory")
 	port := flag.Int("port", 8080, "listen on this port")
 	flag.Parse()
 
 	log.Printf("Starting server...\n")
-	log.Printf("Set publisher web root: %s\n", *webRootPublisher)
-	log.Printf("Set subscriber web root: %s\n", *webRootSubscriber)
+	log.Printf("Set web root: %s\n", *webRoot)
 
 	publisherPassword = os.Getenv("PUBLISHER_PASSWORD")
 	if publisherPassword != "" {
 		log.Printf("Publisher password set\n")
 	}
 
-	if *webRootPublisher == *webRootSubscriber {
-		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(http.Dir(*webRootPublisher)))))
-	}
-	http.Handle("/static/publisher/", http.StripPrefix("/static/publisher/", http.FileServer(http.Dir(http.Dir(*webRootPublisher)))))
-	http.Handle("/static/subscriber/", http.StripPrefix("/static/subscriber/", http.FileServer(http.Dir(http.Dir(*webRootSubscriber)))))
-
 	http.HandleFunc("/ws", wsHandler)
+	http.Handle("/", http.FileServer(http.Dir(http.Dir(*webRoot))))
 
 	log.Printf("Listening on port :%d\n", *port)
 
