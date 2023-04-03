@@ -102,9 +102,10 @@ navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 	});
 
 	pc.createOffer().then(d => {
-		pc.setLocalDescription(d);
 		let val = {Key: 'session_publisher', Value: d};
 		wsSend(val);
+		// initiate sending ICE candidates
+		pc.setLocalDescription(d);
 	}).catch(debug)
 }).catch(debug)
 

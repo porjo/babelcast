@@ -1,6 +1,5 @@
 
 var getChannelsId = setInterval(function() {
-	console.log("get_channels");
 	let val = {Key: 'get_channels'}
 	wsSend(val);
 }, 1000);
@@ -84,9 +83,10 @@ pc.ontrack = function (event) {
 pc.addTransceiver('audio')
 
 pc.createOffer().then(d => {
-	pc.setLocalDescription(d)
 	let val = {Key: 'session_subscriber', Value: d};
 	wsSend(val);
+	// initiate sending ICE candidates
+	pc.setLocalDescription(d)
 }).catch(debug);
 
 // ----------------------------------------------------------------

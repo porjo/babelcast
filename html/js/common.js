@@ -108,7 +108,7 @@ var startSession = sd => {
 }
 
 pc.onicecandidate = e => {
-	if (e.candidate && e.candidate.candidate !== "") {
+	if (e.candidate) {
 		let val = {Key: 'ice_candidate', Value: e.candidate};
 		wsSend(val);
 	}
