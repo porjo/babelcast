@@ -1,4 +1,6 @@
 
+bc = new BabelCast();
+
 var audioTrack;
 
 document.getElementById('reload').addEventListener('click', function() {
@@ -27,37 +29,37 @@ document.getElementById('input-form').addEventListener('submit', function(e) {
 	params.Channel = document.getElementById('channel').value;
 	params.Password = document.getElementById('password').value;
 	let val = {Key: 'connect_publisher', Value: params};
-	wsSend(val);
+	bc.wsSend(val);
 });
 
-ws.onmessage = function (e)	{
+bc.ws.onmessage = (e) => {
 	let wsMsg = JSON.parse(e.data);
 	if( 'Key' in wsMsg ) {
 		switch (wsMsg.Key) {
 			case 'info':
-				debug("server info", wsMsg.Value);
+				bc.debug("server info", wsMsg.Value);
 				break;
 			case 'error':
-				error("server error", wsMsg.Value);
+				bc.error("server error", wsMsg.Value);
 				document.getElementById('output').classList.add('hidden');
 				document.getElementById('input-form').classList.add('hidden');
 				break;
 			case 'sd_answer':
-				startSession(wsMsg.Value);
+				bc.startSession(wsMsg.Value);
 				break;
 			case 'ice_candidate':
-				pc.addIceCandidate(wsMsg.Value)
+				bc.pc.addIceCandidate(wsMsg.Value)
 				break;
 		}
 	}
 };
 
-ws.onclose = function()	{
-	debug("WS connection closed");
+bc.ws.onclose = () => {
+	bc.debug("WS connection closed");
 	if (audioTrack) {
 		audioTrack.stop()
 	}
-	pc.close()
+	bc.pc.close()
 };
 
 //
@@ -80,7 +82,7 @@ const signalMeter = document.querySelector('#microphone-meter meter');
 
 navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 	audioTrack = stream.getAudioTracks()[0];
-	stream.getTracks().forEach(track => pc.addTrack(track, stream))
+	stream.getTracks().forEach(track => bc.pc.addTrack(track, stream))
 	// mute until we're ready
 	audioTrack.enabled = false;
 
@@ -101,18 +103,18 @@ navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 		}, 50);
 	});
 
-	pc.createOffer().then(d => {
+	bc.pc.createOffer().then(d => {
 		let val = {Key: 'session_publisher', Value: d};
-		wsSend(val);
+		bc.wsSend(val);
 		// initiate sending ICE candidates
-		pc.setLocalDescription(d);
-	}).catch(debug)
-}).catch(debug)
+		bc.pc.setLocalDescription(d);
+	}).catch(bc.debug)
+}).catch(bc.debug)
 
 
-pc.onicecandidate = e => {
+bc.pc.onicecandidate = e => {
 	if (e.candidate && e.candidate.candidate !== "") {
 		let val = {Key: 'ice_candidate', Value: e.candidate};
-		wsSend(val);
+		bc.wsSend(val);
 	}
 }
