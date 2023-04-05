@@ -125,6 +125,9 @@ input, textarea {
 	margin: 20px 0;
 }
 
+#microphone-meter meter {
+	width: 50%;
+}
 
 #microphone {
 	font-size: 2em;
