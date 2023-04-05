@@ -84,24 +84,41 @@ navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 	audioTrack = stream.getAudioTracks()[0];
 	stream.getTracks().forEach(track => bc.pc.addTrack(track, stream))
 	// mute until we're ready
-	audioTrack.enabled = false;
+//	audioTrack.enabled = false;
 
-	const soundMeter = new SoundMeter(window.audioContext);
-	soundMeter.connectToSource(stream, function(e) {
-		if (e) {
-			alert(e);
-			return;
-		}
+  async function createSoundMeter() {
+    const audioContext = new AudioContext();
+    await audioContext.audioWorklet.addModule("js/soundmeter.js");
+    const soundmeterNode = new AudioWorkletNode(audioContext,"soundmeter");
 
-		// make the meter value relative to a sliding max
-		let max = 0.0;
-		setInterval(() => {
-			let val = soundMeter.instant.toFixed(2);
-			if( val > max ) { max = val }
-			if( max > 0) { val = (val / max) }
-			signalMeter.value = val;
-		}, 50);
-	});
+    soundmeterNode.port.onmessage = e => {
+	console.log("port message", e);
+      /*
+	    let max = 0.0;
+	    let val = e.data.instant.toFixed(2);
+	    if( val > max ) { max = val }
+	    if( max > 0) { val = (val / max) }
+	    signalMeter.value = val;
+	    */
+    }
+
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(soundmeterNode).connect(audioContext.destination);
+
+
+    /*
+      // make the meter value relative to a sliding max
+	let max = 0.0;
+	setInterval(() => {
+	    let val = soundmeter.instant.toFixed(2);
+	    if( val > max ) { max = val }
+	    if( max > 0) { val = (val / max) }
+	    signalMeter.value = val;
+	}, 50);
+	*/
+  }
+
+	createSoundMeter();
 
 	bc.pc.createOffer().then(d => {
 		let val = {Key: 'session_publisher', Value: d};

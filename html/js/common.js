@@ -18,7 +18,7 @@ class BabelCast {
   pc;
 
   constructor() {
-    console.log('init');
+    console.log('init BabelCast');
     var loc = window.location, ws_uri;
     if (loc.protocol === "https:") {
       ws_uri = "wss:";

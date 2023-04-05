@@ -6,6 +6,62 @@
  *  tree.
  */
 
+class SoundMeter extends AudioWorkletProcessor {
+  _instant
+  _slow
+  _clip
+  _updateIntervalInMS
+  _nextUpdateFrame
+
+  constructor() {
+    super();
+
+    // Logs the current sample-frame and time at the moment of instantiation.
+    // They are accessible from the AudioWorkletGlobalScope.
+    console.log("currentFrame", currentFrame);
+    console.log("currentTime", currentTime);
+    this._instant=0.0;
+    this._slow=0.0;
+    this._clip=0.0;
+    this._updateIntervalInMS = 25;
+    this._nextUpdateFrame = this._updateIntervalInMS;
+    this.port.onmessage = event => {
+      if (event.data.updateIntervalInMS)
+        this._updateIntervalInMS = event.data.updateIntervalInMS;
+    }
+  }
+
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input.length > 0) {
+      let i;
+      let sum = 0.0;
+      let clipcount = 0;
+      for (i = 0; i < input.length; ++i) {
+	sum += input[i] * input[i];
+	if (Math.abs(input[i]) > 0.99) {
+	  clipcount += 1;
+	}
+      }
+      this._instant = Math.sqrt(sum / input.length);
+      this._slow = 0.95 * this._slow + 0.05 * this._instant;
+      this._clip = clipcount / input.length;
+
+      this._nextUpdateFrame -= input.length;
+      if (this._nextUpdateFrame < 0) {
+	this._nextUpdateFrame += this._updateIntervalInMS / 1000 * sampleRate;
+	console.log("postmessage", this._instant);
+	this.port.postMessage({instant: this._instant});
+      }
+    }
+    return true;
+  }
+}
+
+registerProcessor("soundmeter", SoundMeter);
+
+/*
 'use strict';
 
 // Meter class that generates a number correlated to audio volume.
@@ -59,4 +115,4 @@ SoundMeter.prototype.stop = function() {
 	this.mic.disconnect();
 	this.script.disconnect();
 };
-
+*/
