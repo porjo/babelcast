@@ -14,8 +14,8 @@ if(!isWebRTCSupported) {
 }
 
 class BabelCast {
-  ws;
-  pc;
+  ws
+  pc
 
   constructor() {
     console.log('init BabelCast');
@@ -98,7 +98,7 @@ class BabelCast {
     this.pc.onicecandidate = e => {
       if (e.candidate) {
 	let val = {Key: 'ice_candidate', Value: e.candidate};
-	wsSend(val);
+	this.wsSend(val);
       }
     }
   }

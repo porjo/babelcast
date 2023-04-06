@@ -1,7 +1,9 @@
 
+bc = new BabelCast();
+
 var getChannelsId = setInterval(function() {
   let val = {Key: 'get_channels'}
-  wsSend(val);
+  bc.wsSend(val);
 }, 1000);
 
 document.getElementById('reload').addEventListener('click', function() {
@@ -14,7 +16,7 @@ function channelClick(e) {
   let params = {};
   params.Channel = e.target.innerText;
   let val = {Key: 'connect_subscriber', Value: params};
-  wsSend(val);
+  bc.wsSend(val);
 };
 
 function updateChannels(channels) {
@@ -35,34 +37,34 @@ function updateChannels(channels) {
   document.getElementById('reload').classList.remove('hidden');
 };
 
-ws.onmessage = function (e)	{
+bc.ws.onmessage = function (e)	{
   let wsMsg = JSON.parse(e.data);
   if( 'Key' in wsMsg ) {
     switch (wsMsg.Key) {
       case 'info':
-	debug("server info:", wsMsg.Value);
+	bc.debug("server info:", wsMsg.Value);
 	break;
       case 'error':
-	error("server error:", wsMsg.Value);
+	bc.error("server error:", wsMsg.Value);
 	document.getElementById('output').classList.add('hidden');
 	document.getElementById('channels').classList.add('hidden');
 	break;
       case 'sd_answer':
-	startSession(wsMsg.Value);
+	bc.startSession(wsMsg.Value);
 	break;
       case 'channels':
 	updateChannels(wsMsg.Value);
 	break;
       case 'ice_candidate':
-	pc.addIceCandidate(wsMsg.Value)
+	bc.pc.addIceCandidate(wsMsg.Value)
 	break;
     }
   }
 };
 
-ws.onclose = function()	{
-  debug("WS connection closed");
-  pc.close()
+bc.ws.onclose = function()	{
+  bc.debug("WS connection closed");
+  bc.pc.close()
   document.getElementById('media').classList.add('hidden');
 };
 
@@ -70,7 +72,7 @@ ws.onclose = function()	{
 // -------- WebRTC ------------
 //
 
-pc.ontrack = function (event) {
+bc.pc.ontrack = function (event) {
   //console.log("Ontrack", event);
   let el = document.createElement(event.track.kind);
   el.srcObject = event.streams[0];
@@ -80,13 +82,13 @@ pc.ontrack = function (event) {
   document.getElementById('media').appendChild(el);
 }
 
-pc.addTransceiver('audio')
+bc.pc.addTransceiver('audio')
 
-pc.createOffer().then(d => {
+bc.pc.createOffer().then(d => {
   let val = {Key: 'session_subscriber', Value: d};
-  wsSend(val);
+  bc.wsSend(val);
   // initiate sending ICE candidates
-  pc.setLocalDescription(d)
-}).catch(debug);
+  bc.pc.setLocalDescription(d)
+}).catch(bc.debug);
 
 // ----------------------------------------------------------------
