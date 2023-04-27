@@ -1,9 +1,5 @@
 
 .icon-arrows-cw:before { content: '\e800'; } /* '' */
-.icon-down-open:before { content: '\e801'; } /* '' */
-.icon-left-open:before { content: '\e802'; } /* '' */
-.icon-up-open:before { content: '\e803'; } /* '' */
-.icon-right-open:before { content: '\e804'; } /* '' */
 .icon-github-circled:before { content: '\f09b'; } /* '' */
 .icon-mic:before { content: '\f130'; } /* '' */
 .icon-mute:before { content: '\f131'; } /* '' */

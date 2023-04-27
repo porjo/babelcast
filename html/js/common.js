@@ -14,8 +14,8 @@ if(!isWebRTCSupported) {
 }
 
 class BabelCast {
-  ws
-  pc
+  ws // websocket
+  pc // peerconnection
 
   constructor() {
     console.log('init BabelCast');
