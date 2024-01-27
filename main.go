@@ -17,11 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -35,6 +38,12 @@ func main() {
 	webRoot := flag.String("webRoot", "html", "web root directory")
 	port := flag.Int("port", 8080, "listen on this port")
 	flag.Parse()
+
+	/*
+		file, _ := os.Create("./cpu.pprof")
+		pprof.StartCPUProfile(file)
+		defer pprof.StopCPUProfile()
+	*/
 
 	log.Printf("Starting server...\n")
 	log.Printf("Set web root: %s\n", *webRoot)
@@ -57,5 +66,26 @@ func main() {
 
 	reg = NewRegistry()
 
-	log.Fatal(srv.ListenAndServe())
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Println("Error starting server")
+		}
+	}()
+
+	// trap sigterm or interrupt and gracefully shutdown the server
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT)
+	signal.Notify(sigChan, syscall.SIGTERM)
+
+	// block until a signal is received
+	sig := <-sigChan
+	log.Printf("Got signal: %v\n", sig)
+	log.Println("Shutting down")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Graceful shutdown failed %q\n", err)
+	}
 }

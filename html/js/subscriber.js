@@ -1,6 +1,6 @@
 
 var getChannelsId = setInterval(function() {
-	console.log("get_channels");
+	debug("get_channels");
 	let val = {Key: 'get_channels'}
 	wsSend(val);
 }, 1000);
@@ -72,7 +72,7 @@ ws.onclose = function()	{
 //
 
 pc.ontrack = function (event) {
-	//console.log("Ontrack", event);
+	debug("Ontrack", event);
 	let el = document.createElement(event.track.kind);
 	el.srcObject = event.streams[0];
 	el.autoplay = true;
