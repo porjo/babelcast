@@ -11,10 +11,6 @@ A translator would act as a publisher and people wanting to hear the translation
 
 Download [precompiled binary for Linux](https://github.com/porjo/babelcast/releases/latest) or build it yourself.
 
-Requires Go >= 1.19
-
-Fetch the project `go get github.com/porjo/babelcast`
-
 ## Usage
 
 ```
@@ -25,10 +21,16 @@ Usage of ./babelcast:
     	web root directory (default "html")
 ```
 
-Then point your web browser to `http://<server-ip>:8080/`
+Then point your web browser to `http://localhost:8080/`
 
 If the `PUBLISHER_PASSWORD` environment variable is set, then publishers will be required to enter the
 password before they can connect.
+
+### TLS
+
+Except when testing against localhost, web browsers required that TLS (https) be in use any time media devices (e.g. microphone) are in use. You should put babelcast behind a reverse proxy that can provide SSL certificates e.g. [Caddy](https://github.com/caddyserver/caddy).
+
+See this [Stackoverflow post](https://stackoverflow.com/a/34198101/202311) for more information.
 
 ## Credit
 

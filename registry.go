@@ -11,7 +11,7 @@ import (
 // only permit one publisher per channel
 type Registry struct {
 	sync.Mutex
-	Channels map[string]*Channel
+	channels map[string]*Channel
 }
 
 type Channel struct {
@@ -21,15 +21,9 @@ type Channel struct {
 	LocalTrack      *webrtc.TrackLocalStaticRTP
 }
 
-/*
-type Client struct {
-	Username string
-}
-*/
-
 func NewRegistry() *Registry {
 	r := &Registry{}
-	r.Channels = make(map[string]*Channel)
+	r.channels = make(map[string]*Channel)
 	return r
 }
 
@@ -38,14 +32,14 @@ func (r *Registry) AddPublisher(channelName string, localTrack *webrtc.TrackLoca
 	var ok bool
 	r.Lock()
 	defer r.Unlock()
-	if channel, ok = r.Channels[channelName]; ok {
+	if channel, ok = r.channels[channelName]; ok {
 		if channel.PublisherCount > 0 {
 			return fmt.Errorf("channel '%s' is already in use", channelName)
 		}
 		channel.PublisherCount++
 		channel.Active = true
 	} else {
-		r.Channels[channelName] = &Channel{PublisherCount: 1, Active: true, LocalTrack: localTrack}
+		r.channels[channelName] = &Channel{PublisherCount: 1, Active: true, LocalTrack: localTrack}
 	}
 	return nil
 }
@@ -56,7 +50,7 @@ func (r *Registry) AddSubscriber(channelName string) error {
 
 	r.Lock()
 	defer r.Unlock()
-	if channel, ok = r.Channels[channelName]; ok && channel.Active {
+	if channel, ok = r.channels[channelName]; ok && channel.Active {
 		channel.SubscriberCount++
 	} else {
 		return fmt.Errorf("channel '%s' not ready", channelName)
@@ -67,7 +61,7 @@ func (r *Registry) AddSubscriber(channelName string) error {
 func (r *Registry) RemovePublisher(channelName string) {
 	r.Lock()
 	defer r.Unlock()
-	if channel, ok := r.Channels[channelName]; ok {
+	if channel, ok := r.channels[channelName]; ok {
 		channel.PublisherCount--
 		if channel.PublisherCount == 0 {
 			channel.Active = false
@@ -78,7 +72,7 @@ func (r *Registry) RemovePublisher(channelName string) {
 func (r *Registry) RemoveSubscriber(channelName string) {
 	r.Lock()
 	defer r.Unlock()
-	if channel, ok := r.Channels[channelName]; ok {
+	if channel, ok := r.channels[channelName]; ok {
 		channel.SubscriberCount--
 	}
 }
@@ -87,7 +81,7 @@ func (r *Registry) GetChannels() []string {
 	r.Lock()
 	defer r.Unlock()
 	channels := make([]string, 0)
-	for name, c := range r.Channels {
+	for name, c := range r.channels {
 		if c.Active {
 			channels = append(channels, name)
 		}
@@ -98,7 +92,7 @@ func (r *Registry) GetChannels() []string {
 func (r *Registry) GetChannel(channelName string) *Channel {
 	r.Lock()
 	defer r.Unlock()
-	for name, c := range r.Channels {
+	for name, c := range r.channels {
 		if c.Active && name == channelName {
 			return c
 		}
