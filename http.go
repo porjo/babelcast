@@ -138,6 +138,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				c.errChan <- err
 				continue
 			}
+			// If there is no error, send a success message
+			m := wsMsg{Key: "session_established"}
+			err = c.writeMsg(m)
+			if err != nil {
+				c.logger.Error(err.Error())
+				continue
+			}
 		case "session_publisher":
 			var offer webrtc.SessionDescription
 			err = json.Unmarshal(msg.Value, &offer)
