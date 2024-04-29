@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,14 +31,25 @@ import (
 
 const httpTimeout = 15 * time.Second
 
-var publisherPassword = ""
+var (
+	publisherPassword = ""
 
-var reg *Registry
+	reg *Registry
+)
 
 func main() {
 	webRoot := flag.String("webRoot", "html", "web root directory")
 	port := flag.Int("port", 8080, "listen on this port")
+	debug := flag.Bool("debug", false, "enable debug log")
 	flag.Parse()
+
+	var programLevel = new(slog.LevelVar) // Info by default
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: programLevel}))
+	slog.SetDefault(logger)
+
+	if *debug {
+		programLevel.Set(slog.LevelDebug)
+	}
 
 	/*
 		file, _ := os.Create("./cpu.pprof")

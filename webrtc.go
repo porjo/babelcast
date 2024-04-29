@@ -15,7 +15,7 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
+	"log/slog"
 
 	"github.com/pion/webrtc/v3"
 )
@@ -93,7 +93,7 @@ func (wp *WebRTCPeer) SetupSubscriber(channel *Channel, onStateChange func(conne
 		for {
 			_, _, rtcpErr := rtpSender.Read(rtcpBuf)
 			if rtcpErr != nil {
-				fmt.Printf("rtpSender.Read err '%s'\n", rtcpErr)
+				slog.Error("rtpSender.Read error", "err", rtcpErr)
 				return
 			}
 		}

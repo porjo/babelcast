@@ -19,10 +19,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
-	"log"
-	"os"
+	"log/slog"
 	"regexp"
 	"sync"
 	"time"
@@ -52,7 +50,7 @@ type Conn struct {
 	infoChan      chan string
 	trackQuitChan chan struct{}
 
-	logger *log.Logger
+	logger *slog.Logger
 
 	hasClosed bool
 }
@@ -62,19 +60,14 @@ func NewConn(ws *websocket.Conn) *Conn {
 	c.errChan = make(chan error)
 	c.infoChan = make(chan string)
 	c.trackQuitChan = make(chan struct{})
-	c.logger = log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
+	c.logger = slog.With("remote_addr", ws.RemoteAddr())
 	// wrap Gorilla conn with our conn so we can extend functionality
 	c.wsConn = ws
 
 	return c
 }
 
-func (c *Conn) Log(format string, v ...interface{}) {
-	id := fmt.Sprintf("WS %x", c.wsConn.RemoteAddr())
-	c.logger.Printf(id+": "+format, v...)
-}
-
-func (c *Conn) setupSessionPublisher(ctx context.Context, offer webrtc.SessionDescription) error {
+func (c *Conn) setupSessionPublisher(offer webrtc.SessionDescription) error {
 
 	answer, err := c.peer.SetupPublisher(offer, c.rtcStateChangeHandler, c.rtcTrackHandlerPublisher, c.onIceCandidate)
 	if err != nil {
@@ -93,7 +86,7 @@ func (c *Conn) setupSessionPublisher(ctx context.Context, offer webrtc.SessionDe
 	return nil
 }
 
-func (c *Conn) setupSessionSubscriber(ctx context.Context) error {
+func (c *Conn) setupSessionSubscriber() error {
 
 	channel := reg.GetChannel(c.channelName)
 	if channel == nil {
@@ -117,7 +110,7 @@ func (c *Conn) setupSessionSubscriber(ctx context.Context) error {
 	return nil
 }
 
-func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
+func (c *Conn) connectPublisher(cmd CmdConnect) error {
 
 	if c.peer.pc == nil {
 		return fmt.Errorf("webrtc session not established")
@@ -138,10 +131,10 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	c.Lock()
 	c.channelName = cmd.Channel
 	c.Unlock()
-	c.Log("setting up publisher for channel '%s'\n", c.channelName)
+	c.logger.Info("setting up publisher for channel", "channel", c.channelName)
 
 	localTrack := <-c.peer.localTrackChan
-	c.Log("publisher has localTrack\n")
+	c.logger.Info("publisher has localTrack")
 
 	if err := reg.AddPublisher(c.channelName, localTrack); err != nil {
 		return err
@@ -150,7 +143,7 @@ func (c *Conn) connectPublisher(ctx context.Context, cmd CmdConnect) error {
 	return nil
 }
 
-func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
+func (c *Conn) connectSubscriber(cmd CmdConnect) error {
 
 	if c.peer.pc == nil {
 		return fmt.Errorf("webrtc session not established")
@@ -163,7 +156,7 @@ func (c *Conn) connectSubscriber(ctx context.Context, cmd CmdConnect) error {
 		return fmt.Errorf("channel name must contain only alphanumeric characters")
 	}
 
-	c.Log("setting up subscriber for channel '%s'\n", c.channelName)
+	c.logger.Info("setting up subscriber for channel", "channel", c.channelName)
 
 	return nil
 }
@@ -191,7 +184,7 @@ func (c *Conn) writeMsg(val interface{}) error {
 	if err != nil {
 		return err
 	}
-	c.Log("write message %s\n", string(j))
+	c.logger.Debug("write message", "msg", string(j))
 	c.Lock()
 	defer c.Unlock()
 	if err = c.wsConn.WriteMessage(websocket.TextMessage, j); err != nil {
@@ -211,7 +204,7 @@ func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receive
 		for range ticker.C {
 			err := c.peer.pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())}})
 			if err != nil {
-				fmt.Printf("WriteRTCP err '%s'\n", err)
+				c.logger.Error("WriteRTCP error", "err", err)
 				return
 			}
 		}
@@ -222,23 +215,23 @@ func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receive
 	if newTrackErr != nil {
 		panic(newTrackErr)
 	}
-	c.Log("trackhandler sending localtrack\n")
+
+	c.logger.Debug("trackhandler sending localtrack")
 	c.peer.localTrackChan <- localTrack
-	c.Log("trackhandler sent localtrack\n")
+	c.logger.Debug("trackhandler sent localtrack")
 
 	rtpBuf := make([]byte, 1400)
 	for {
 		i, _, readErr := remoteTrack.Read(rtpBuf)
 		if readErr != nil {
-			fmt.Printf("remoteTrack.Read err '%s'\n", readErr)
+			c.logger.Error("remoteTrack.Read error", "err", readErr)
 			return
 		}
-		//		fmt.Printf("remoteTrack.Read len %d bytes\n", i)
 
 		// ErrClosedPipe means we don't have any subscribers, this is ok if no peers have connected yet
 		_, err := localTrack.Write(rtpBuf[:i])
 		if err != nil {
-			fmt.Printf("localTrack.write err '%s'\n", err)
+			c.logger.Error("localTrack.write error", "err", err)
 			if !errors.Is(err, io.ErrClosedPipe) {
 				return
 			}
@@ -253,13 +246,13 @@ func (c *Conn) rtcStateChangeHandler(connectionState webrtc.ICEConnectionState) 
 
 	switch connectionState {
 	case webrtc.ICEConnectionStateConnected:
-		c.Log("ice connected\n")
-		c.Log("remote SDP\n%s\n", c.peer.pc.RemoteDescription().SDP)
-		c.Log("local SDP\n%s\n", c.peer.pc.LocalDescription().SDP)
+		c.logger.Info("ice connected")
+		c.logger.Debug("remote SDP", "sdp", c.peer.pc.RemoteDescription().SDP)
+		c.logger.Debug("local SDP", "sdp", c.peer.pc.LocalDescription().SDP)
 		c.infoChan <- "ice connected"
 
 	case webrtc.ICEConnectionStateDisconnected:
-		c.Log("ice disconnected\n")
+		c.logger.Info("ice disconnected")
 		c.Close()
 
 		// non blocking channel write, as receiving goroutine may already have quit
@@ -278,20 +271,22 @@ func (c *Conn) onIceCandidate(candidate *webrtc.ICECandidate) {
 
 	j, err := json.Marshal(candidate.ToJSON())
 	if err != nil {
-		c.Log("marshal err %s\n", err)
+		c.logger.Error("marshal error", "err", err.Error())
 		return
 	}
+
+	c.logger.Debug("ICE candidate", "candidate", j)
 
 	m := wsMsg{Key: "ice_candidate", Value: j}
 	err = c.writeMsg(m)
 	if err != nil {
-		c.Log("writemsg err %s\n", err)
+		c.logger.Error("writemsg error", "err", err.Error())
 		return
 	}
 }
 
 func (c *Conn) LogHandler(ctx context.Context) {
-	defer c.Log("log goroutine quitting...\n")
+	defer c.logger.Info("log goroutine quitting...")
 	for {
 		select {
 		case <-ctx.Done():
@@ -299,31 +294,31 @@ func (c *Conn) LogHandler(ctx context.Context) {
 		case err := <-c.errChan:
 			j, err := json.Marshal(err.Error())
 			if err != nil {
-				c.Log("marshal err %s\n", err)
+				c.logger.Error("marshal error", "err", err.Error())
 			}
 			m := wsMsg{Key: "error", Value: j}
 			err = c.writeMsg(m)
 			if err != nil {
-				c.Log("writemsg err %s\n", err)
+				c.logger.Error("writemsg error", "err", err.Error())
 			}
 			// end the WS session on error
 			c.Close()
 		case info := <-c.infoChan:
 			j, err := json.Marshal(info)
 			if err != nil {
-				c.Log("marshal err %s\n", err)
+				c.logger.Error("marshal error", "err", err.Error())
 			}
 			m := wsMsg{Key: "info", Value: j}
 			err = c.writeMsg(m)
 			if err != nil {
-				c.Log("writemsg err %s\n", err)
+				c.logger.Error("writemsg error", "err", err.Error())
 			}
 		}
 	}
 }
 
 func (c *Conn) PingHandler(ctx context.Context) {
-	defer c.Log("ws ping goroutine quitting...\n")
+	defer c.logger.Info("ws ping goroutine quitting...")
 	pingCh := time.Tick(PingInterval)
 	for {
 		select {
@@ -335,7 +330,7 @@ func (c *Conn) PingHandler(ctx context.Context) {
 			err := c.wsConn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(WriteWait))
 			if err != nil {
 				c.Unlock()
-				c.Log("ping client, err %s\n", err)
+				c.logger.Error("ping client error", "err", err.Error())
 				return
 			}
 			c.Unlock()
@@ -343,8 +338,10 @@ func (c *Conn) PingHandler(ctx context.Context) {
 	}
 }
 
+/*
 func hash(s string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(s))
 	return h.Sum32()
 }
+*/
