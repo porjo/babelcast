@@ -32,8 +32,7 @@ function updateChannels(channels) {
 			channelsEle.appendChild(c);
 		});
 	}
-	document.getElementById('channels').classList.remove('hidden');
-	document.getElementById('reload').classList.remove('hidden');
+
 };
 
 ws.onmessage = function (e)	{
@@ -53,6 +52,12 @@ ws.onmessage = function (e)	{
 				break;
 			case 'channels':
 				updateChannels(wsMsg.Value);
+				break;
+			case "session_established": // wait for the message that session_subscriber was received
+				document.getElementById("channels").classList.remove("hidden");
+				document.getElementById('reload').classList.remove('hidden');
+				document.getElementById("spinner").classList.add("hidden");
+				console.log("session_established");
 				break;
 			case 'ice_candidate':
 				pc.addIceCandidate(wsMsg.Value)
