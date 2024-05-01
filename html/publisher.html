@@ -18,15 +18,15 @@
 			</div>
 			<div id="supported">
 				<form id="input-form">
-					<p>Create a channel by entering a channel name in the field below and clicking 'Connect'.<br>If the server requires a password enter it below, otherwise leave blank.</p>
+					<p>Create a channel by entering a channel name in the field below and clicking 'Connect'.</p>
 					<table>
+						<tr id='password-form' class='hidden'>
+							<th>Password:</th>
+							<td><input type='password' id='password' /></td>
+						</tr>
 						<tr>
 							<th>Channel:</th>
 							<td><input type='text' id='channel' required /></td>
-						</tr>
-						<tr>
-							<th>Password:</th>
-							<td><input type='password' id='password' /></td>
 						</tr>
 					</table>
 					<button id='connect-button' class='button hidden'>Connect</button>
@@ -58,6 +58,10 @@
 					<button id='reload' class='button'><span class='icon-arrows-cw'></span>Reload</button>
 				</div>
 				<div id='error' class='hidden'></div>
+				<details id='messages'>
+					<summary>Messages</summary>
+					<div id='message-log'></div>
+				</details>
 				<div id='footer'>
 					<a href='https://github.com/porjo/babelcast'><span class='icon-github-circled' id='github-logo'></span>Github Project</a>
 				</div>
