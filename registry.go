@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
 )
 
@@ -16,10 +17,18 @@ type Registry struct {
 }
 
 type Channel struct {
-	PublisherCount  int
-	SubscriberCount int
-	Active          bool
-	LocalTrack      *webrtc.TrackLocalStaticRTP
+	LocalTrack *webrtc.TrackLocalStaticRTP
+
+	Publisher   *Publisher
+	Subscribers map[string]*Subscriber
+}
+
+type Publisher struct {
+	ID string
+}
+type Subscriber struct {
+	ID          string
+	closeChanFn func()
 }
 
 func NewRegistry() *Registry {
@@ -33,32 +42,43 @@ func (r *Registry) AddPublisher(channelName string, localTrack *webrtc.TrackLoca
 	var ok bool
 	r.Lock()
 	defer r.Unlock()
+	p := Publisher{}
+	p.ID = uuid.NewString()
 	if channel, ok = r.channels[channelName]; ok {
-		if channel.PublisherCount > 0 {
-			return fmt.Errorf("channel '%s' is already in use", channelName)
+		if channel.Publisher != nil {
+			return fmt.Errorf("channel %q is already in use", channelName)
 		}
-		channel.PublisherCount++
 		channel.LocalTrack = localTrack
-		channel.Active = true
+		channel.Publisher = &p
 	} else {
-		channel = &Channel{PublisherCount: 1, Active: true, LocalTrack: localTrack}
+		channel = &Channel{
+			LocalTrack:  localTrack,
+			Publisher:   &p,
+			Subscribers: make(map[string]*Subscriber),
+		}
 		r.channels[channelName] = channel
 	}
-	slog.Info("publisher added", "channel", channelName, "count", channel.PublisherCount)
+	slog.Info("publisher added", "channel", channelName)
 	return nil
 }
 
-func (r *Registry) AddSubscriber(channelName string) error {
+func (r *Registry) NewSubscriber() *Subscriber {
+	s := &Subscriber{}
+	s.ID = uuid.NewString()
+	return s
+}
+
+func (r *Registry) AddSubscriber(channelName string, s *Subscriber) error {
 	var channel *Channel
 	var ok bool
 
 	r.Lock()
 	defer r.Unlock()
-	if channel, ok = r.channels[channelName]; ok && channel.Active {
-		channel.SubscriberCount++
-		slog.Info("subscriber added", "channel", channelName, "count", channel.SubscriberCount)
+	if channel, ok = r.channels[channelName]; ok && channel.Publisher != nil {
+		channel.Subscribers[s.ID] = s
+		slog.Info("subscriber added", "channel", channelName, "count", len(channel.Subscribers))
 	} else {
-		return fmt.Errorf("channel '%s' not ready", channelName)
+		return fmt.Errorf("channel %q not ready", channelName)
 	}
 	return nil
 }
@@ -67,20 +87,23 @@ func (r *Registry) RemovePublisher(channelName string) {
 	r.Lock()
 	defer r.Unlock()
 	if channel, ok := r.channels[channelName]; ok {
-		channel.PublisherCount--
-		if channel.PublisherCount == 0 {
-			channel.Active = false
-			slog.Info("publisher removed", "channel", channelName, "count", channel.PublisherCount)
+		channel.Publisher = nil
+		for _, s := range channel.Subscribers {
+			if s.closeChanFn != nil {
+				// this needs to be in its own goroutine, otherwise the current goroutine ends prematurely (why?)
+				go s.closeChanFn()
+			}
 		}
+		slog.Info("publisher removed", "channel", channelName)
 	}
 }
 
-func (r *Registry) RemoveSubscriber(channelName string) {
+func (r *Registry) RemoveSubscriber(channelName string, id string) {
 	r.Lock()
 	defer r.Unlock()
 	if channel, ok := r.channels[channelName]; ok {
-		channel.SubscriberCount--
-		slog.Info("subscriber removed", "channel", channelName, "count", channel.SubscriberCount)
+		delete(channel.Subscribers, id)
+		slog.Info("subscriber removed", "channel", channelName, "count", len(channel.Subscribers))
 	}
 }
 
@@ -89,7 +112,7 @@ func (r *Registry) GetChannels() []string {
 	defer r.Unlock()
 	channels := make([]string, 0)
 	for name, c := range r.channels {
-		if c.Active {
+		if c.Publisher != nil {
 			channels = append(channels, name)
 		}
 	}
@@ -100,7 +123,7 @@ func (r *Registry) GetChannel(channelName string) *Channel {
 	r.Lock()
 	defer r.Unlock()
 	for name, c := range r.channels {
-		if c.Active && name == channelName {
+		if name == channelName && c.Publisher != nil {
 			return c
 		}
 	}
