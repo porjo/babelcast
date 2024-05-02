@@ -35,7 +35,7 @@ ws.onmessage = function (e)	{
 	if( 'Key' in wsMsg ) {
 		switch (wsMsg.Key) {
 			case 'info':
-				debug("server info", wsMsg.Value);
+				debug("server info: " + wsMsg.Value);
 				break;
 			case 'error':
 				error("server error", wsMsg.Value);
@@ -48,12 +48,15 @@ ws.onmessage = function (e)	{
 			case 'ice_candidate':
 				pc.addIceCandidate(wsMsg.Value)
 				break;
+			case 'password_required':
+				document.getElementById('password-form').classList.remove('hidden');
+				break;
 		}
 	}
 };
 
 ws.onclose = function()	{
-	debug("WS connection closed");
+	debug("ws: connection closed");
 	if (audioTrack) {
 		audioTrack.stop()
 	}
@@ -80,7 +83,10 @@ const signalMeter = document.querySelector('#microphone-meter meter');
 
 navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 	audioTrack = stream.getAudioTracks()[0];
-	stream.getTracks().forEach(track => pc.addTrack(track, stream))
+	stream.getTracks().forEach(track => {
+		debug("webrtc: add track")
+		pc.addTrack(track, stream)
+	})
 	// mute until we're ready
 	audioTrack.enabled = false;
 
@@ -101,17 +107,17 @@ navigator.mediaDevices.getUserMedia(constraints).then(stream => {
 		}, 50);
 	});
 
-	pc.createOffer().then(d => {
-		pc.setLocalDescription(d);
-		let val = {Key: 'session_publisher', Value: d};
-		wsSend(val);
-	}).catch(debug)
+	let f = () => {
+		debug("webrtc: create offer")
+		pc.createOffer().then(d => {
+			debug("webrtc: set local description")
+			pc.setLocalDescription(d);
+			let val = { Key: 'session_publisher', Value: d };
+			wsSend(val);
+		}).catch(debug)
+	}
+	// create offer if WS is ready, otherwise queue 
+	ws.readyState == WebSocket.OPEN ? f() : onWSReady.push(f)
+
 }).catch(debug)
 
-
-pc.onicecandidate = e => {
-	if (e.candidate && e.candidate.candidate !== "") {
-		let val = {Key: 'ice_candidate', Value: e.candidate};
-		wsSend(val);
-	}
-}

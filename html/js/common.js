@@ -25,10 +25,14 @@ ws_uri += path + "/ws";
 
 var ws = new WebSocket(ws_uri);
 
+// array of funcs to call when WS is ready
+var onWSReady = [];
+
 var error, msg;
 
 var debug = (...m) => {
 	console.log(...m)
+	msg(m.join(' '))
 }
 
 error = (...m) => {
@@ -38,23 +42,16 @@ error = (...m) => {
 	errorEle.classList.remove('hidden');
 }
 msg = m => {
-	let d = new Date(Date.now()).toLocaleString();
-	// strip html
-	let div = document.createElement("div");
-	div.innerHtml = m.Message;
-	let a = div.innerText;
-	let msgEle = document.getElementById('messages');
-	msgEle.classList.add('message');
-	let insEle = document.createElement("div");
-	insEle.innerHTML = "<span class='time'>" + d + "</span><span class='sender'>" + m.Sender + "</span><span class='message'>" + a + "</span>";
-	msgEle.insertBefore(insEle, msgEle.firstChild);
+	let d = new Date(Date.now()).toISOString();
+	let msgEle = document.getElementById('message-log');
+	msgEle.prepend(d + ' ' + m + '\n');
 }
 
 var wsSend = m => {
 	if (ws.readyState === 1) {
 		ws.send(JSON.stringify(m));
 	} else {
-		debug("WS send not ready, delaying...");
+		debug("ws: send not ready, delaying...", m);
 		setTimeout(function() {
 			ws.send(JSON.stringify(m));
 		}, 2000);
@@ -62,12 +59,16 @@ var wsSend = m => {
 }
 
 ws.onopen = function() {
-	debug("WS connection open");
+	debug("ws: connection open");
+	onWSReady.forEach(f => {
+		f()
+	})
 };
 
 //
 // -------- WebRTC ------------
 //
+
 var pc = new RTCPeerConnection({
 
 	iceServers: [
@@ -86,14 +87,13 @@ pc.oniceconnectionstatechange = e => {
 		case "disconnected":
 		case "closed":
 		case "completed":
-			break;
 		case "connected":
 			document.getElementById('spinner').classList.add('hidden');
 			let cb = document.getElementById('connect-button');
 			if(cb) { cb.classList.remove('hidden') };
 			break;
 		default:
-			debug("ice state unknown", e);
+			debug("webrtc: ice state unknown", e);
 			break;
 	}
 }
@@ -101,6 +101,7 @@ pc.oniceconnectionstatechange = e => {
 var startSession = sd => {
 	document.getElementById('spinner').classList.remove('hidden');
 	try {
+		debug("webrtc: set remote description")
 		pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: sd}));
 	} catch (e) {
 		alert(e);

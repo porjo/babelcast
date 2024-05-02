@@ -67,6 +67,12 @@ input, textarea {
 	display: none;
 }
 
+label {
+	font-size: 0.8em;
+	margin: 5px 0;
+	display: inline-block;
+}
+
 #error {
 	border: 2px solid #8c4d4d;
 	background-color: #fff1f1;
@@ -76,6 +82,24 @@ input, textarea {
 	font-size: 1.2em;
 	font-weight: bold;
 	text-align: left;
+}
+
+#messages {
+	border: 2px solid #fff;
+	text-align: left;
+	padding: 10px;
+}
+
+#messages summary {
+	cursor: pointer;
+}
+
+#message-log {
+	font-family: monospace;
+	overflow: auto;
+	padding: 10px;
+	white-space: pre-wrap;
+	height: 100px;
 }
 
 .title {

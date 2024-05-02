@@ -32,7 +32,6 @@ function updateChannels(channels) {
 			channelsEle.appendChild(c);
 		});
 	}
-
 };
 
 ws.onmessage = function (e)	{
@@ -40,7 +39,7 @@ ws.onmessage = function (e)	{
 	if( 'Key' in wsMsg ) {
 		switch (wsMsg.Key) {
 			case 'info':
-				debug("server info:", wsMsg.Value);
+				debug("server info: " + wsMsg.Value);
 				break;
 			case 'error':
 				error("server error:", wsMsg.Value);
@@ -53,11 +52,10 @@ ws.onmessage = function (e)	{
 			case 'channels':
 				updateChannels(wsMsg.Value);
 				break;
-			case "session_established": // wait for the message that session_subscriber was received
+			case "session_received": // wait for the message that session_subscriber was received
 				document.getElementById("channels").classList.remove("hidden");
 				document.getElementById('reload').classList.remove('hidden');
 				document.getElementById("spinner").classList.add("hidden");
-				console.log("session_established");
 				break;
 			case 'ice_candidate':
 				pc.addIceCandidate(wsMsg.Value)
@@ -67,9 +65,10 @@ ws.onmessage = function (e)	{
 };
 
 ws.onclose = function()	{
-	debug("WS connection closed");
+	debug("ws: connection closed")
 	pc.close()
-	document.getElementById('media').classList.add('hidden');
+	document.getElementById('media').classList.add('hidden')
+	clearInterval(getChannelsId);
 };
 
 //
@@ -77,7 +76,7 @@ ws.onclose = function()	{
 //
 
 pc.ontrack = function (event) {
-	debug("Ontrack", event);
+	debug("webrtc: ontrack");
 	let el = document.createElement(event.track.kind);
 	el.srcObject = event.streams[0];
 	el.autoplay = true;
@@ -88,10 +87,16 @@ pc.ontrack = function (event) {
 
 pc.addTransceiver('audio')
 
-pc.createOffer().then(d => {
-	pc.setLocalDescription(d)
-	let val = {Key: 'session_subscriber', Value: d};
-	wsSend(val);
-}).catch(debug);
+let f = () => {
+	debug("webrtc: create offer")
+	pc.createOffer().then(d => {
+		debug("webrtc: set local description")
+		pc.setLocalDescription(d);
+		let val = { Key: 'session_subscriber', Value: d };
+		wsSend(val);
+	}).catch(debug)
+}
+// create offer if WS is ready, otherwise queue 
+ws.readyState == WebSocket.OPEN ? f() : onWSReady.push(f)
 
 // ----------------------------------------------------------------

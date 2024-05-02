@@ -9,16 +9,18 @@ A translator would act as a publisher and people wanting to hear the translation
 
 ## Building
 
-Download [precompiled binary for Linux](https://github.com/porjo/babelcast/releases/latest) or build it yourself.
+Download [precompiled binary](https://github.com/porjo/babelcast/releases/latest) or build it yourself.
 
 ## Usage
 
 ```
 Usage of ./babelcast:
+  -debug
+        enable debug log
   -port int
-    	listen on this port (default 8080)
+        listen on this port (default 8080)
   -webRoot string
-    	web root directory (default "html")
+        web root directory (default "html")
 ```
 
 Then point your web browser to `http://localhost:8080/`

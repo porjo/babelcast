@@ -46,9 +46,8 @@ type Conn struct {
 
 	channelName string
 
-	errChan       chan error
-	infoChan      chan string
-	trackQuitChan chan struct{}
+	errChan  chan error
+	infoChan chan string
 
 	logger *slog.Logger
 
@@ -59,7 +58,6 @@ func NewConn(ws *websocket.Conn) *Conn {
 	c := &Conn{}
 	c.errChan = make(chan error)
 	c.infoChan = make(chan string)
-	c.trackQuitChan = make(chan struct{})
 	c.logger = slog.With("remote_addr", ws.RemoteAddr())
 	// wrap Gorilla conn with our conn so we can extend functionality
 	c.wsConn = ws
@@ -68,6 +66,8 @@ func NewConn(ws *websocket.Conn) *Conn {
 }
 
 func (c *Conn) setupSessionPublisher(offer webrtc.SessionDescription) error {
+
+	c.logger = c.logger.With("client_type", "publisher")
 
 	answer, err := c.peer.SetupPublisher(offer, c.rtcStateChangeHandler, c.rtcTrackHandlerPublisher, c.onIceCandidate)
 	if err != nil {
@@ -87,6 +87,8 @@ func (c *Conn) setupSessionPublisher(offer webrtc.SessionDescription) error {
 }
 
 func (c *Conn) setupSessionSubscriber() error {
+
+	c.logger = c.logger.With("client_type", "subscriber")
 
 	channel := reg.GetChannel(c.channelName)
 	if channel == nil {
@@ -143,32 +145,11 @@ func (c *Conn) connectPublisher(cmd CmdConnect) error {
 	return nil
 }
 
-func (c *Conn) connectSubscriber(cmd CmdConnect) error {
-
-	if c.peer.pc == nil {
-		return fmt.Errorf("webrtc session not established")
-	}
-
-	if cmd.Channel == "" {
-		return fmt.Errorf("channel cannot be empty")
-	}
-	if channelRegexp.MatchString(cmd.Channel) {
-		return fmt.Errorf("channel name must contain only alphanumeric characters")
-	}
-
-	c.logger.Info("setting up subscriber for channel", "channel", c.channelName)
-
-	return nil
-}
-
 func (c *Conn) Close() {
 	c.Lock()
 	defer c.Unlock()
 	if c.hasClosed {
 		return
-	}
-	if c.trackQuitChan != nil {
-		close(c.trackQuitChan)
 	}
 	if c.peer.pc != nil {
 		c.peer.pc.Close()
@@ -224,7 +205,9 @@ func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receive
 	for {
 		i, _, readErr := remoteTrack.Read(rtpBuf)
 		if readErr != nil {
-			c.logger.Error("remoteTrack.Read error", "err", readErr)
+			if !errors.Is(readErr, io.EOF) {
+				c.logger.Error("remoteTrack.Read error", "err", readErr)
+			}
 			return
 		}
 
@@ -286,7 +269,7 @@ func (c *Conn) onIceCandidate(candidate *webrtc.ICECandidate) {
 }
 
 func (c *Conn) LogHandler(ctx context.Context) {
-	defer c.logger.Info("log goroutine quitting...")
+	defer c.logger.Info("log goroutine quit")
 	for {
 		select {
 		case <-ctx.Done():
@@ -318,7 +301,7 @@ func (c *Conn) LogHandler(ctx context.Context) {
 }
 
 func (c *Conn) PingHandler(ctx context.Context) {
-	defer c.logger.Info("ws ping goroutine quitting...")
+	defer c.logger.Info("ws ping goroutine quit")
 	pingCh := time.Tick(PingInterval)
 	for {
 		select {

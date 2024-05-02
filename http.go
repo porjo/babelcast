@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -139,7 +140,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			// If there is no error, send a success message
-			m := wsMsg{Key: "session_established"}
+			m := wsMsg{Key: "session_received"}
 			err = c.writeMsg(m)
 			if err != nil {
 				c.logger.Error(err.Error())
@@ -152,11 +153,20 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				c.errChan <- err
 				continue
 			}
+
 			err = c.setupSessionPublisher(offer)
 			if err != nil {
 				c.logger.Error("setupSession error", "err", err)
 				c.errChan <- err
 				continue
+			}
+			if publisherPassword != "" {
+				m := wsMsg{Key: "password_required"}
+				err = c.writeMsg(m)
+				if err != nil {
+					c.logger.Error(err.Error())
+					continue
+				}
 			}
 		case "connect_publisher":
 			cmd := CmdConnect{}
@@ -191,16 +201,26 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			err := c.connectSubscriber(cmd)
-			if err != nil {
-				c.logger.Error("connectSubscriber error", "err", err)
+			if cmd.Channel == "" {
+				c.errChan <- fmt.Errorf("channel cannot be empty")
+				continue
+			}
+			if channelRegexp.MatchString(cmd.Channel) {
+				c.errChan <- fmt.Errorf("channel name must contain only alphanumeric characters")
+				continue
+			}
+
+			c.logger.Info("setting up subscriber for channel", "channel", c.channelName)
+
+			if err := reg.AddSubscriber(c.channelName); err != nil {
 				c.errChan <- err
 				continue
 			}
+
 			defer func() {
 				reg.RemoveSubscriber(c.channelName)
 			}()
 		}
 	}
-	c.logger.Info("end handler\n")
+	c.logger.Info("end WS handler\n")
 }

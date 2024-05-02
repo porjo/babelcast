@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
@@ -37,10 +38,13 @@ func (r *Registry) AddPublisher(channelName string, localTrack *webrtc.TrackLoca
 			return fmt.Errorf("channel '%s' is already in use", channelName)
 		}
 		channel.PublisherCount++
+		channel.LocalTrack = localTrack
 		channel.Active = true
 	} else {
-		r.channels[channelName] = &Channel{PublisherCount: 1, Active: true, LocalTrack: localTrack}
+		channel = &Channel{PublisherCount: 1, Active: true, LocalTrack: localTrack}
+		r.channels[channelName] = channel
 	}
+	slog.Info("publisher added", "channel", channelName, "count", channel.PublisherCount)
 	return nil
 }
 
@@ -52,6 +56,7 @@ func (r *Registry) AddSubscriber(channelName string) error {
 	defer r.Unlock()
 	if channel, ok = r.channels[channelName]; ok && channel.Active {
 		channel.SubscriberCount++
+		slog.Info("subscriber added", "channel", channelName, "count", channel.SubscriberCount)
 	} else {
 		return fmt.Errorf("channel '%s' not ready", channelName)
 	}
@@ -65,6 +70,7 @@ func (r *Registry) RemovePublisher(channelName string) {
 		channel.PublisherCount--
 		if channel.PublisherCount == 0 {
 			channel.Active = false
+			slog.Info("publisher removed", "channel", channelName, "count", channel.PublisherCount)
 		}
 	}
 }
@@ -74,6 +80,7 @@ func (r *Registry) RemoveSubscriber(channelName string) {
 	defer r.Unlock()
 	if channel, ok := r.channels[channelName]; ok {
 		channel.SubscriberCount--
+		slog.Info("subscriber removed", "channel", channelName, "count", channel.SubscriberCount)
 	}
 }
 
