@@ -37,7 +37,6 @@ var (
 )
 
 func main() {
-	webRoot := flag.String("webRoot", "html", "web root directory")
 	port := flag.Int("port", 8080, "listen on this port")
 	debug := flag.Bool("debug", false, "enable debug log")
 	flag.Parse()
@@ -57,7 +56,6 @@ func main() {
 	*/
 
 	slog.Info("starting server")
-	slog.Info("set web root", "dir", *webRoot)
 
 	publisherPassword = os.Getenv("PUBLISHER_PASSWORD")
 	if publisherPassword != "" {
@@ -65,7 +63,7 @@ func main() {
 	}
 
 	http.HandleFunc("/ws", wsHandler)
-	http.Handle("/", http.FileServer(http.Dir(http.Dir(*webRoot))))
+	http.Handle("/", http.FileServer(http.FS(embedContentHtml)))
 
 	slog.Info("listening on port", "port", *port)
 
