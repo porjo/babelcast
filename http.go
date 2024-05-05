@@ -15,7 +15,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -66,161 +65,193 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	defer ctxCancel()
-
 	c.logger.Info("client connected", "addr", clientAddress)
 
-	go c.LogHandler(ctx)
 	// setup ping/pong to keep connection open
-	go c.PingHandler(ctx)
+	pingCh := time.Tick(PingInterval)
+
+	// websocket connections support one concurrent reader and one concurrent writer.
+	// we put reads in a new goroutine below and leave writes in the main goroutine
+	wsInMsg := make(chan wsMsg)
+	quitChan := make(chan struct{})
+
+	go func() {
+		defer close(quitChan)
+		for {
+			msgType, raw, err := c.wsConn.ReadMessage()
+			if err != nil {
+				c.logger.Error("ReadMessage error", "err", err)
+				return
+			}
+			c.logger.Debug("read message", "msg", string(raw))
+			if msgType != websocket.TextMessage {
+				c.logger.Error("unknown message type", "type", msgType)
+				return
+			}
+			var msg wsMsg
+			err = json.Unmarshal(raw, &msg)
+			if err != nil {
+				c.logger.Error(err.Error())
+				return
+			}
+			wsInMsg <- msg
+		}
+	}()
 
 	for {
-		msgType, raw, err := c.wsConn.ReadMessage()
-		if err != nil {
-			c.logger.Error("ReadMessage error", "err", err)
-			break
-		}
-
-		c.logger.Debug("read message", "msg", string(raw))
-
-		if msgType != websocket.TextMessage {
-			c.logger.Error("unknown message type - close websocket")
-			break
-		}
-
-		var msg wsMsg
-		err = json.Unmarshal(raw, &msg)
-		if err != nil {
-			c.errChan <- err
-			continue
-		}
-
-		switch msg.Key {
-		case "ice_candidate":
-			var candidate webrtc.ICECandidateInit
-			err = json.Unmarshal(msg.Value, &candidate)
+		select {
+		case msg := <-wsInMsg:
+			err = c.handleWSMsg(msg)
 			if err != nil {
-				c.errChan <- err
-				continue
-			}
-
-			if candidate.Candidate != "" {
-				if err = c.peer.pc.AddICECandidate(candidate); err != nil {
-					c.logger.Error("AddICECandidate error", "err", err.Error())
-					continue
-				}
-			}
-		case "get_channels":
-			// send list of channels to client
-			channels := reg.GetChannels()
-			c.logger.Debug("channels", "c", channels)
-			j, err := json.Marshal(channels)
-			if err != nil {
-				c.logger.Error("getchannels marshal", "err", err)
-				continue
-			}
-			m := wsMsg{Key: "channels", Value: j}
-			err = c.writeMsg(m)
-			if err != nil {
-				c.logger.Error(err.Error())
-				continue
-			}
-		case "session_subscriber":
-			// subscriber session is only partially setup here as we have to wait for
-			// channel selection to complete the setup
-			var offer webrtc.SessionDescription
-			err = json.Unmarshal(msg.Value, &offer)
-			if err != nil {
-				c.errChan <- err
-				continue
-			}
-			if err := c.peer.pc.SetRemoteDescription(offer); err != nil {
-				c.errChan <- err
-				continue
-			}
-			// If there is no error, send a success message
-			m := wsMsg{Key: "session_received"}
-			err = c.writeMsg(m)
-			if err != nil {
-				c.logger.Error(err.Error())
-				continue
-			}
-		case "session_publisher":
-			var offer webrtc.SessionDescription
-			err = json.Unmarshal(msg.Value, &offer)
-			if err != nil {
-				c.errChan <- err
-				continue
-			}
-
-			err = c.setupSessionPublisher(offer)
-			if err != nil {
-				c.logger.Error("setupSession error", "err", err)
-				c.errChan <- err
-				continue
-			}
-			if publisherPassword != "" {
-				m := wsMsg{Key: "password_required"}
+				j, _ := json.Marshal(err.Error())
+				m := wsMsg{Key: "error", Value: j}
 				err = c.writeMsg(m)
 				if err != nil {
-					c.logger.Error(err.Error())
-					continue
+					c.logger.Error("writemsg error", "err", err.Error())
 				}
+				return
 			}
-		case "connect_publisher":
-			cmd := CmdConnect{}
-			err = json.Unmarshal(msg.Value, &cmd)
+		case <-quitChan:
+			c.logger.Debug("quitChan closed")
+			return
+		case info := <-c.infoChan:
+			j, err := json.Marshal(info)
 			if err != nil {
-				c.errChan <- err
-				continue
+				c.logger.Error("marshal error", "err", err.Error())
+				return
 			}
-			err := c.connectPublisher(cmd)
+			m := wsMsg{Key: "info", Value: j}
+			err = c.writeMsg(m)
 			if err != nil {
-				c.logger.Error("connectPublisher error", "err", err)
-				c.errChan <- err
-				continue
+				c.logger.Error("writemsg error", "err", err.Error())
+				return
 			}
-			defer func() {
-				reg.RemovePublisher(c.channelName)
-			}()
-		case "connect_subscriber":
-			cmd := CmdConnect{}
-			err = json.Unmarshal(msg.Value, &cmd)
+		case <-pingCh:
+			err := c.wsConn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(WriteWait))
 			if err != nil {
-				c.errChan <- err
-				continue
+				c.logger.Error("ping client error", "err", err.Error())
+				return
 			}
-
-			// finish subscriber session setup here
-			c.channelName = cmd.Channel
-			err = c.setupSessionSubscriber()
-			if err != nil {
-				c.logger.Error("setupSession error", "err", err)
-				c.errChan <- err
-				continue
-			}
-
-			if cmd.Channel == "" {
-				c.errChan <- fmt.Errorf("channel cannot be empty")
-				continue
-			}
-			if channelRegexp.MatchString(cmd.Channel) {
-				c.errChan <- fmt.Errorf("channel name must contain only alphanumeric characters")
-				continue
-			}
-
-			c.logger.Info("setting up subscriber for channel", "channel", c.channelName)
-
-			if err := reg.AddSubscriber(c.channelName); err != nil {
-				c.errChan <- err
-				continue
-			}
-
-			defer func() {
-				reg.RemoveSubscriber(c.channelName)
-			}()
 		}
 	}
-	c.logger.Info("end WS handler\n")
+}
+
+func (c *Conn) handleWSMsg(msg wsMsg) error {
+	var err error
+	switch msg.Key {
+	case "ice_candidate":
+		var candidate webrtc.ICECandidateInit
+		err = json.Unmarshal(msg.Value, &candidate)
+		if err != nil {
+			return err
+		}
+
+		if candidate.Candidate != "" {
+			if err = c.peer.pc.AddICECandidate(candidate); err != nil {
+				c.logger.Error("AddICECandidate error", "err", err.Error())
+				return err
+			}
+		}
+	case "get_channels":
+		// send list of channels to client
+		channels := reg.GetChannels()
+		c.logger.Debug("channels", "c", channels)
+		j, err := json.Marshal(channels)
+		if err != nil {
+			c.logger.Error("getchannels marshal", "err", err)
+			return err
+		}
+		m := wsMsg{Key: "channels", Value: j}
+		err = c.writeMsg(m)
+		if err != nil {
+			c.logger.Error(err.Error())
+			return err
+		}
+	case "session_subscriber":
+		// subscriber session is only partially setup here as we have to wait for
+		// channel selection to complete the setup
+		var offer webrtc.SessionDescription
+		err = json.Unmarshal(msg.Value, &offer)
+		if err != nil {
+			return err
+		}
+		if err := c.peer.pc.SetRemoteDescription(offer); err != nil {
+			return err
+		}
+		// If there is no error, send a success message
+		m := wsMsg{Key: "session_received"}
+		err = c.writeMsg(m)
+		if err != nil {
+			c.logger.Error(err.Error())
+			return err
+		}
+	case "session_publisher":
+		c.isPublisher = true
+		var offer webrtc.SessionDescription
+		err = json.Unmarshal(msg.Value, &offer)
+		if err != nil {
+			return err
+		}
+
+		err = c.setupSessionPublisher(offer)
+		if err != nil {
+			c.logger.Error("setupSession error", "err", err)
+			return err
+		}
+		if publisherPassword != "" {
+			m := wsMsg{Key: "password_required"}
+			err = c.writeMsg(m)
+			if err != nil {
+				c.logger.Error(err.Error())
+				return err
+			}
+		}
+	case "connect_publisher":
+		cmd := CmdConnect{}
+		err = json.Unmarshal(msg.Value, &cmd)
+		if err != nil {
+			return err
+		}
+		err := c.connectPublisher(cmd)
+		if err != nil {
+			c.logger.Error("connectPublisher error", "err", err)
+			return err
+		}
+	case "connect_subscriber":
+		cmd := CmdConnect{}
+		err = json.Unmarshal(msg.Value, &cmd)
+		if err != nil {
+			return err
+		}
+
+		// finish subscriber session setup here
+		c.channelName = cmd.Channel
+		err = c.setupSessionSubscriber()
+		if err != nil {
+			c.logger.Error("setupSession error", "err", err)
+			return err
+		}
+
+		if cmd.Channel == "" {
+			return fmt.Errorf("channel cannot be empty")
+		}
+		if channelRegexp.MatchString(cmd.Channel) {
+			return fmt.Errorf("channel name must contain only alphanumeric characters")
+		}
+
+		c.logger.Info("setting up subscriber for channel", "channel", c.channelName)
+
+		s := reg.NewSubscriber()
+		c.clientID = s.ID
+		s.closeChanFn = func() {
+			j, _ := json.Marshal(c.channelName)
+			m := wsMsg{Key: "channel_closed", Value: j}
+			c.writeMsg(m)
+			c.Close()
+		}
+		if err := reg.AddSubscriber(c.channelName, s); err != nil {
+			return err
+		}
+	}
+	return nil
 }

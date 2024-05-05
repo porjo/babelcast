@@ -60,6 +60,9 @@ ws.onmessage = function (e)	{
 			case 'ice_candidate':
 				pc.addIceCandidate(wsMsg.Value)
 				break;
+			case 'channel_closed':
+				error("channel '" + wsMsg.Value + "' closed by server")
+				break;
 		}
 	}
 };
