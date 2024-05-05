@@ -19,7 +19,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 )
 
 type WebRTCPeer struct {

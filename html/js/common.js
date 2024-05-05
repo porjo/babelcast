@@ -8,8 +8,8 @@ var isWebRTCSupported = navigator.getUserMedia ||
         window.RTCPeerConnection;
 
 if(!isWebRTCSupported) {
-	document.getElementById("not-supported").style.display = 'block';
-	document.getElementById("supported").style.display = 'none';
+	document.getElementById("not-supported").classList.remove('hidden');
+	document.getElementById("supported").classList.add('hidden');
 	throw new Error("WebRTC not supported");
 }
 
@@ -35,10 +35,15 @@ var debug = (...m) => {
 	msg(m.join(' '))
 }
 
-error = (...m) => {
-	console.log(...m)
-	let errorEle = document.getElementById('error');
-	errorEle.innerText = m.join(", ");
+error = (...msgs) => {
+	console.log(...msgs)
+	var errorEle = document.getElementById('errors');
+	msgs.forEach(m => {
+			let c = document.createElement("div");
+			c.classList.add('error');
+			c.innerText = m;
+			errorEle.appendChild(c);
+	})
 	errorEle.classList.remove('hidden');
 }
 msg = m => {
@@ -48,13 +53,11 @@ msg = m => {
 }
 
 var wsSend = m => {
-	if (ws.readyState === 1) {
-		ws.send(JSON.stringify(m));
+	let j = JSON.stringify(m);
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.send(j)
 	} else {
-		debug("ws: send not ready, delaying...", m);
-		setTimeout(function() {
-			ws.send(JSON.stringify(m));
-		}, 2000);
+		debug("ws: send not ready, skipping...", j);
 	}
 }
 

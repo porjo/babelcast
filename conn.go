@@ -22,15 +22,9 @@ import (
 	"log/slog"
 	"regexp"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/rtcp"
-	"github.com/pion/webrtc/v3"
-)
-
-const (
-	rtcpPLIInterval = time.Second * 3
+	"github.com/pion/webrtc/v4"
 )
 
 // channel name should NOT match the negation of valid characters
@@ -42,6 +36,7 @@ type Conn struct {
 	wsConn      *websocket.Conn
 	channelName string
 	infoChan    chan string
+	quitchan    chan struct{}
 	logger      *slog.Logger
 	hasClosed   bool
 
@@ -52,6 +47,7 @@ type Conn struct {
 func NewConn(ws *websocket.Conn) *Conn {
 	c := &Conn{}
 	c.infoChan = make(chan string)
+	c.quitchan = make(chan struct{})
 	c.logger = slog.With("remote_addr", ws.RemoteAddr())
 	c.wsConn = ws
 
@@ -170,19 +166,6 @@ func (c *Conn) writeMsg(val interface{}) error {
 
 // WebRTC callback function
 func (c *Conn) rtcTrackHandlerPublisher(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-
-	// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
-	// This can be less wasteful by processing incoming RTCP events, then we would emit a NACK/PLI when a viewer requests it
-	go func() {
-		ticker := time.NewTicker(rtcpPLIInterval)
-		for range ticker.C {
-			err := c.peer.pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())}})
-			if err != nil {
-				c.logger.Error("WriteRTCP error", "err", err)
-				return
-			}
-		}
-	}()
 
 	// Create a local track, all our SFU clients will be fed via this track
 	localTrack, newTrackErr := webrtc.NewTrackLocalStaticRTP(remoteTrack.Codec().RTPCodecCapability, "audio", "babelcast")
