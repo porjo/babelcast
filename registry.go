@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 )
 
 // keep track of which channels are being used
@@ -27,8 +27,8 @@ type Publisher struct {
 	ID string
 }
 type Subscriber struct {
-	ID          string
-	closeChanFn func()
+	ID       string
+	QuitChan chan struct{}
 }
 
 func NewRegistry() *Registry {
@@ -38,10 +38,10 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) AddPublisher(channelName string, localTrack *webrtc.TrackLocalStaticRTP) error {
-	var channel *Channel
-	var ok bool
 	r.Lock()
 	defer r.Unlock()
+	var channel *Channel
+	var ok bool
 	p := Publisher{}
 	p.ID = uuid.NewString()
 	if channel, ok = r.channels[channelName]; ok {
@@ -64,19 +64,19 @@ func (r *Registry) AddPublisher(channelName string, localTrack *webrtc.TrackLoca
 
 func (r *Registry) NewSubscriber() *Subscriber {
 	s := &Subscriber{}
+	s.QuitChan = make(chan struct{})
 	s.ID = uuid.NewString()
 	return s
 }
 
 func (r *Registry) AddSubscriber(channelName string, s *Subscriber) error {
-	var channel *Channel
-	var ok bool
-
 	r.Lock()
 	defer r.Unlock()
+	var channel *Channel
+	var ok bool
 	if channel, ok = r.channels[channelName]; ok && channel.Publisher != nil {
 		channel.Subscribers[s.ID] = s
-		slog.Info("subscriber added", "channel", channelName, "count", len(channel.Subscribers))
+		slog.Info("subscriber added", "channel", channelName, "subscriber_count", len(channel.Subscribers))
 	} else {
 		return fmt.Errorf("channel %q not ready", channelName)
 	}
@@ -88,11 +88,9 @@ func (r *Registry) RemovePublisher(channelName string) {
 	defer r.Unlock()
 	if channel, ok := r.channels[channelName]; ok {
 		channel.Publisher = nil
+		// tell all subscribers to quit
 		for _, s := range channel.Subscribers {
-			if s.closeChanFn != nil {
-				// this needs to be in its own goroutine, otherwise the current goroutine ends prematurely (why?)
-				go s.closeChanFn()
-			}
+			close(s.QuitChan)
 		}
 		slog.Info("publisher removed", "channel", channelName)
 	}
@@ -103,7 +101,7 @@ func (r *Registry) RemoveSubscriber(channelName string, id string) {
 	defer r.Unlock()
 	if channel, ok := r.channels[channelName]; ok {
 		delete(channel.Subscribers, id)
-		slog.Info("subscriber removed", "channel", channelName, "count", len(channel.Subscribers))
+		slog.Info("subscriber removed", "channel", channelName, "subscriber_count", len(channel.Subscribers))
 	}
 }
 

@@ -73,15 +73,18 @@ label {
 	display: inline-block;
 }
 
-#error {
+#errors {
 	border: 2px solid #8c4d4d;
 	background-color: #fff1f1;
 	min-height: 50px;
 	border-radius: 2px;
-	padding: 20px;
 	font-size: 1.2em;
 	font-weight: bold;
 	text-align: left;
+}
+
+.error {
+	margin: 10px;
 }
 
 #messages {

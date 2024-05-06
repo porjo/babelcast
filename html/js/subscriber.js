@@ -68,7 +68,7 @@ ws.onmessage = function (e)	{
 };
 
 ws.onclose = function()	{
-	debug("ws: connection closed")
+	error("websocket connection closed");
 	pc.close()
 	document.getElementById('media').classList.add('hidden')
 	clearInterval(getChannelsId);

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 )
 
 const PingInterval = 10 * time.Second
@@ -73,10 +73,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	// websocket connections support one concurrent reader and one concurrent writer.
 	// we put reads in a new goroutine below and leave writes in the main goroutine
 	wsInMsg := make(chan wsMsg)
-	quitChan := make(chan struct{})
+	wsReadQuitChan := make(chan struct{})
 
 	go func() {
-		defer close(quitChan)
+		defer close(wsReadQuitChan)
+		defer c.logger.Debug("ws read goroutine quit")
 		for {
 			msgType, raw, err := c.wsConn.ReadMessage()
 			if err != nil {
@@ -111,7 +112,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-		case <-quitChan:
+		case <-wsReadQuitChan:
+			return
+		case <-c.quitchan:
 			c.logger.Debug("quitChan closed")
 			return
 		case info := <-c.infoChan:
@@ -243,12 +246,22 @@ func (c *Conn) handleWSMsg(msg wsMsg) error {
 
 		s := reg.NewSubscriber()
 		c.clientID = s.ID
-		s.closeChanFn = func() {
-			j, _ := json.Marshal(c.channelName)
-			m := wsMsg{Key: "channel_closed", Value: j}
-			c.writeMsg(m)
-			c.Close()
-		}
+
+		go func() {
+			for {
+				select {
+				case <-c.quitchan:
+					return
+				case <-s.QuitChan:
+					j, _ := json.Marshal(c.channelName)
+					m := wsMsg{Key: "channel_closed", Value: j}
+					c.writeMsg(m)
+					close(c.quitchan)
+					return
+				}
+			}
+		}()
+
 		if err := reg.AddSubscriber(c.channelName, s); err != nil {
 			return err
 		}

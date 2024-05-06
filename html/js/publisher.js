@@ -56,6 +56,7 @@ ws.onmessage = function (e)	{
 };
 
 ws.onclose = function()	{
+	error("websocket connection closed");
 	debug("ws: connection closed");
 	if (audioTrack) {
 		audioTrack.stop()
