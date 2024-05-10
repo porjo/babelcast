@@ -28,7 +28,7 @@ password before they can connect.
 
 ### TLS
 
-Except when testing against localhost, web browsers required that TLS (https) be in use any time media devices (e.g. microphone) are in use. You should put babelcast behind a reverse proxy that can provide SSL certificates e.g. [Caddy](https://github.com/caddyserver/caddy).
+Except when testing against localhost, web browsers require that TLS (`https://`) be in use any time media devices (e.g. microphone) are in use. You should put Babelcast behind a reverse proxy that can provide SSL certificates e.g. [Caddy](https://github.com/caddyserver/caddy).
 
 See this [Stackoverflow post](https://stackoverflow.com/a/34198101/202311) for more information.
 
