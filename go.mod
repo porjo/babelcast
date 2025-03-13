@@ -1,6 +1,7 @@
 module github.com/porjo/babelcast
 
 go 1.22
+toolchain go1.23.7
 
 require (
 	github.com/google/uuid v1.6.0
@@ -25,7 +26,7 @@ require (
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.0 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
-	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )
