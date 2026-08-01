@@ -1,76 +1,126 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html>
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-		<title>Babelcast Publisher</title>
+    <title>Babelcast Publisher</title>
 
-		<link href="css/common.css" rel="stylesheet">
-		<link href="fontello/css/fontello.css" rel="stylesheet">
-	</head>
-	<body>
+    <link href="css/common.css" rel="stylesheet" />
+    <link href="fontello/css/fontello.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="title">
+        <span class="logo">Babelcast</span
+        ><span id="subtitle" class="subtitle">Publisher</span>
+      </div>
+      <div id="not-supported" class="container hidden">
+        <p>
+          Unfortunately your web browser doesn't appear to support WebRTC which
+          is required for this application. Please try another web browser.
+        </p>
+      </div>
+      <div id="supported">
+        <form id="input-form">
+          <p>
+            Create a channel by entering a channel name in the field below and
+            clicking 'Connect'.<br />If the server requires a password enter it
+            below, otherwise leave blank.
+          </p>
+          <table>
+            <tr>
+              <th>Channel:</th>
+              <td><input type="text" id="channel" required /></td>
+            </tr>
+            <tr class="hidden">
+              <th>Password:</th>
+              <td><input type="password" id="password" /></td>
+            </tr>
+            <tr>
+              <th>Microphone:</th>
+              <td style="width: 60%">
+                <select id="microphone-select">
+                  <option value="default">Default Microphone</option>
+                </select>
+              </td>
+            </tr>
+          </table>
+          <button id="connect-button" class="button hidden">Connect</button>
+          <div id="spinner">
+            <p>Negotiating connection...</p>
+            <div class="sk-fading-circle">
+              <div class="sk-circle1 sk-circle"></div>
+              <div class="sk-circle2 sk-circle"></div>
+              <div class="sk-circle3 sk-circle"></div>
+              <div class="sk-circle4 sk-circle"></div>
+              <div class="sk-circle5 sk-circle"></div>
+              <div class="sk-circle6 sk-circle"></div>
+              <div class="sk-circle7 sk-circle"></div>
+              <div class="sk-circle8 sk-circle"></div>
+              <div class="sk-circle9 sk-circle"></div>
+              <div class="sk-circle10 sk-circle"></div>
+              <div class="sk-circle11 sk-circle"></div>
+              <div class="sk-circle12 sk-circle"></div>
+            </div>
+          </div>
+        </form>
 
-		<div class="container">
-			<div class='title'><span class='logo'>Babelcast</span><span class='subtitle'>Publisher</span></div>
-			<div id="not-supported" class="container hidden">
-				<p>Unfortunately your web browser doesn't appear to support WebRTC which is required for this application. Please try another web browser.</p>
-			</div>
-			<div id="supported">
-				<form id="input-form">
-					<p>Create a channel by entering a channel name in the field below and clicking 'Connect'.</p>
-					<table>
-						<tr id='password-form' class='hidden'>
-							<th>Password:</th>
-							<td><input type='password' id='password' /></td>
-						</tr>
-						<tr>
-							<th>Channel:</th>
-							<td><input type='text' id='channel' required /></td>
-						</tr>
-					</table>
-					<button id='connect-button' class='button hidden'>Connect</button>
-					<div id='spinner'>
-						<p>Negotiating connection...</p>
-						<div class="sk-fading-circle">
-							<div class="sk-circle1 sk-circle"></div>
-							<div class="sk-circle2 sk-circle"></div>
-							<div class="sk-circle3 sk-circle"></div>
-							<div class="sk-circle4 sk-circle"></div>
-							<div class="sk-circle5 sk-circle"></div>
-							<div class="sk-circle6 sk-circle"></div>
-							<div class="sk-circle7 sk-circle"></div>
-							<div class="sk-circle8 sk-circle"></div>
-							<div class="sk-circle9 sk-circle"></div>
-							<div class="sk-circle10 sk-circle"></div>
-							<div class="sk-circle11 sk-circle"></div>
-							<div class="sk-circle12 sk-circle"></div>
-						</div>
-					</div>
-				</form>
+        <div id="output" class="hidden">
+          <div id="microphone-meter">
+            <span class="icon-mic on" id="microphone"></span>
+            <meter high="0.9" low="0.1" max="1" value="0"></meter>
+          </div>
 
-				<div id='output' class='hidden'>
-					<div id="microphone-meter">
-						<span class='icon-mute' id='microphone'></span>
-						<meter high="0.9" low="0.1" max="1" value="0"></meter>
-					</div>
+          <button id="record" class="button">
+            <span class="icon-record"></span>Record
+          </button>
+          <button id="reload" class="button">
+            <span class="icon-arrows-cw"></span>Reload
+          </button>
+          <div class="auto-stop-controls">
+            <input type="checkbox" id="auto-stop-enabled" checked="" />
+            Auto-stop recording after
 
-					<button id='reload' class='button'><span class='icon-arrows-cw'></span>Reload</button>
-				</div>
-				<div id='errors' class='hidden'></div>
-				<details id='messages'>
-					<summary>Messages</summary>
-					<div id='message-log'></div>
-				</details>
-				<div id='footer'>
-					<a href='https://github.com/porjo/babelcast'><span class='icon-github-circled' id='github-logo'></span>Github Project</a>
-				</div>
-			</div>
-		</div>
+            <input
+              type="number"
+              id="silence-minutes"
+              value="60"
+              min="1"
+              max="180"
+            />min
+          </div>
+          
+          <div class="volume-controls">
+            <label for="volume-slider">Volume: <span id="volume-display">100%</span></label>
+            <input
+              type="range"
+              id="volume-slider"
+              min="10"
+              max="500"
+              value="100"
+              step="10"
+            />
+            <small>Adjust microphone input volume (10% - 500%)</small>
+          </div>
+        </div>
+        <div id="errors" class="hidden"></div>
+        <details id="messages">
+          <summary>Messages</summary>
+          <div id="message-log"></div>
+        </details>
+        <div id="footer">
+          <a href="https://github.com/porjo/babelcast"
+            ><span class="icon-github-circled" id="github-logo"></span>Github
+            Project</a
+          >
+        </div>
+      </div>
+    </div>
 
-
-		<script src="js/common.js"></script>
-		<script src="js/publisher.js"></script>
-		<script src="js/soundmeter.js"></script>
-	</body>
+    <script src="js/common.js"></script>
+    <script src="js/microphone.js"></script>
+    <script src="js/publisher.js"></script>
+    <script src="js/soundmeter.js"></script>
+  </body>
 </html>

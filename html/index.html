@@ -1,19 +1,284 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html>
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title id="title">Live Audio Stream</title>
+    <!-- Material Design Lite -->
+    <script src="js/material.min.js"></script>
+    <link rel="stylesheet" href="css/material.min.css" />
+    <!-- Material Design icon font -->
+    <link rel="stylesheet" href="font/font.css" />
+    <link href="css/subscriber.css" rel="stylesheet" />
+  </head>
 
-		<title>Babelcast</title>
+  <body class="default">
+    <div id="galleryModal" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="closeGallery()">&times;</span>
+        <div class="gallery">
+          <!-- Gallery items will be dynamically inserted here -->
+        </div>
+      </div>
+    </div>
 
-		<link href="css/common.css" rel="stylesheet">
-		<link href="fontello/css/fontello.css" rel="stylesheet">
-	</head>
-	<body>
-		<div class='title'><span class='logo'>Babelcast</span></div>
-		<ul>
-			<li><a href='publisher.html'>Publisher</a>
-			<li><a href='subscriber.html'>Subscriber</a>
-		</ul>
-	</body>
+    <div class="menu-buttons">
+      <button
+        class="hidden team-button mdl-button mdl-js-button mdl-button--icon mdl-button--icon noselect"
+        onclick="openGallery()"
+      >
+        <i class="material-icons">interpreter_mode</i>
+      </button>
+      <button
+        class="theme-button mdl-button mdl-js-button mdl-button--icon mdl-button--icon noselect"
+        id="themeButton"
+      >
+        <i class="material-icons">palette</i>
+      </button>
+    </div>
+    <!-- Wide card with share menu button -->
+
+    <div class="container noselect">
+      <h1>Audio Stream</h1>
+
+      <div id="not-supported" class="hidden">
+        <p id="unsupported_browser">
+          Unfortunately your web browser doesn't appear to support WebRTC which
+          is required for this application. Please try another web browser.
+        </p>
+      </div>
+      <div id="output" class="hidden">
+        <div id="media"></div>
+      </div>
+      <div id="supported">
+        <div id="channels" class="hidden">
+          <!-- <h1 id="channels_header">Channels</h3> -->
+          <p id="channels_description">
+            Click on a channel name below to connect.
+          </p>
+          <p id="nochannels"><i>No Channels found</i></p>
+          <div>
+            <!-- <button class="button">
+              <i class="material-icons">record_voice_over</i> Translation
+            </button>
+            <button class="button">
+              <i class="material-icons">translate</i>Live Original
+            </button> -->
+          </div>
+        </div>
+      </div>
+      <!-- Spinner and Play button -->
+      <div
+        id="spinner"
+        style="width: max(80vw, 100%)"
+        class="mdl-progress mdl-js-progress mdl-progress__indeterminate"
+      ></div>
+      <div style="display: flex; justify-content: center">
+        <button
+          id="play"
+          class="play-button mdl-button mdl-js-button mdl-button--fab mdl-js-ripple-effect hidden"
+        >
+          <i class="material-icons">play_arrow</i>
+        </button>
+      </div>
+      <div style="display: flex; justify-content: center">
+        <button id="reload-pill" class="reload-pill hidden" onclick="window.location.reload()">Reload</button>
+      </div>
+      <div id="errors" class="hidden"></div>
+      <div id="message-log-dialog" class="mdl-dialog">
+        <div class="mdl-dialog__title">
+          <span>Message Log</span>
+          <button class="mdl-button mdl-button--icon close-dialog">
+            <i class="material-icons">close</i>
+          </button>
+        </div>
+        <div class="mdl-dialog__content">
+          <div id="message-log"></div>
+        </div>
+      </div>
+      <div id="footer">
+        <p
+          style="
+            position: relative;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+          "
+        >
+          <button
+            id="open-message-log"
+            class="mdl-button mdl-js-button mdl-button--icon"
+          >
+            <i class="material-icons">terminal</i>
+          </button>
+          <span id="powered_by"> Powered by</span>
+          <a href="https://github.com/porjo/babelcast">Babelcast</a>
+        </p>
+      </div>
+    </div>
+    <div id="block_buttons_layer" class="hidden"></div>
+    <style>
+      .mdl-dialog {
+        border: none;
+        box-shadow: 0 9px 46px 8px rgba(0, 0, 0, 0.14),
+          0 11px 15px -7px rgba(0, 0, 0, 0.12),
+          0 24px 38px 3px rgba(0, 0, 0, 0.2);
+        width: 80%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow: hidden;
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+        background-color: white;
+        border-radius: 4px;
+      }
+
+      .mdl-dialog__title {
+        padding: 24px 24px 0;
+        margin: 0;
+        font-size: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .mdl-dialog__content {
+        padding: 20px 24px 24px;
+        color: rgba(0, 0, 0, 0.54);
+        font-size: 14px;
+        max-height: 60vh;
+        overflow-y: auto;
+        text-align: left;
+      }
+
+      .mdl-dialog__actions {
+        padding: 8px;
+        display: flex;
+        justify-content: flex-end;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+      }
+
+      #message-log {
+        font-family: monospace;
+        white-space: pre-wrap;
+        line-height: 1.5;
+        font-size: 12px;
+        color: #333;
+      }
+
+      /* Dialog backdrop */
+      .dialog-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        display: none;
+      }
+
+      /* Button in footer */
+      #open-message-log {
+        margin-left: 10px;
+        vertical-align: middle;
+        color: var(--text-color);
+      }
+
+      /* For dark themes */
+      body.dark #message-log-dialog {
+        background-color: #333;
+        color: #fff;
+      }
+
+      body.dark .mdl-dialog__content {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      body.dark #message-log {
+        color: #ccc;
+      }
+    </style>
+
+    <!-- JavaScript changes for log dialog interaction -->
+    <script>
+      // Add this to the end of your subscriber.js file or in a script tag in the HTML
+
+      document.addEventListener("DOMContentLoaded", function () {
+        // Elements
+        const messageLogDialog = document.getElementById("message-log-dialog");
+        const messageLog = document.getElementById("message-log");
+        const openLogButton = document.getElementById("open-message-log");
+        const closeButtons = document.querySelectorAll(".close-dialog");
+        const clearLogButton = document.querySelector(".clear-log");
+
+        // Create backdrop
+        const backdrop = document.createElement("div");
+        backdrop.className = "dialog-backdrop";
+        document.body.appendChild(backdrop);
+
+        // Open dialog
+        openLogButton.addEventListener("click", function () {
+          messageLogDialog.style.display = "block";
+          backdrop.style.display = "block";
+
+          // Scroll to bottom of log
+          messageLog.scrollTop = messageLog.scrollHeight;
+        });
+
+        // Close dialog (via buttons)
+        closeButtons.forEach((button) => {
+          button.addEventListener("click", function () {
+            messageLogDialog.style.display = "none";
+            backdrop.style.display = "none";
+          });
+        });
+
+        // Close dialog when clicking backdrop
+        backdrop.addEventListener("click", function () {
+          messageLogDialog.style.display = "none";
+          backdrop.style.display = "none";
+        });
+
+        // Clear log
+        clearLogButton.addEventListener("click", function () {
+          messageLog.textContent = "";
+        });
+
+        // Close on ESC key
+        document.addEventListener("keydown", function (e) {
+          if (
+            e.key === "Escape" &&
+            messageLogDialog.style.display === "block"
+          ) {
+            messageLogDialog.style.display = "none";
+            backdrop.style.display = "none";
+          }
+        });
+
+        // Override the original message function to auto-scroll log
+        // Make a backup of the original function
+        const originalMsgFunction = window.msg;
+
+        // Override with our enhanced version
+        window.msg = function (m) {
+          // Call the original function
+          originalMsgFunction(m);
+
+          // Auto-scroll to bottom when new messages arrive
+          if (messageLogDialog.style.display === "block") {
+            messageLog.scrollTop = messageLog.scrollHeight;
+          }
+        };
+      });
+    </script>
+    <script src="js/common.js"></script>
+    <script src="js/subscriber.js"></script>
+    <script src="js/utils.js"></script>
+  </body>
 </html>

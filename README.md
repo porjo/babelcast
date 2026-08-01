@@ -32,6 +32,10 @@ Except when testing against localhost, web browsers require that TLS (`https://`
 
 See this [Stackoverflow post](https://stackoverflow.com/a/34198101/202311) for more information.
 
+### Using Publisher on a different computer in the same network
+
+If you want to stream audio through a different device than the server, you may need to visit `chrome://flags/#unsafely-treat-insecure-origin-as-secure` and add that device's origin (e.g. `http://192.168.1.50:8080`) to the list so that Chrome allows you to use the microphone.
+
 ## Credit
 
 Thanks to the excellent [Pion](https://github.com/pion/webrtc) library for making WebRTC so accessible.
